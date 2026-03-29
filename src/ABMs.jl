@@ -4,7 +4,8 @@ module ABMs
 export ABM, ABMRule, run!, DiscreteHazard, ContinuousHazard, FullClosure, 
        ClosureState, ClosureTime, RawODE, ABMFlow, filter, push!, copy, length,
        Observable, Traj, TiePolicy, TieBreak, TieRandom, TieError,
-       RuntimeABM, Intervention, refresh_clocks!
+       RuntimeABM, Intervention, refresh_clocks!,
+       infer_schema, validate_schema
 
 using Distributions, CompetingClocks, Random
 using DataStructures: DefaultDict
@@ -264,6 +265,138 @@ end
   mapping::Vector{Pair{Symbol, Int}} # pair pat's variables w/ dyn quantities
 end 
 
+# Schema inference and validation
+#################################
+
+"""Extract the schema from an ABMRule's pattern (the codomain of left(rule))."""
+rule_schema(r::ABMRule) = acset_schema(codom(left(getrule(r))))
+
+"""Extract the schema from an ABMFlow's pattern."""
+flow_schema(f::ABMFlow) = acset_schema(f.pat)
+
+"""
+    merge_schemas(schemas::Vector{BasicSchema{Symbol}})
+
+Merge multiple schemas by identifying objects, homs, attrs, and attrtypes by name.
+Conflicting hom/attr signatures (same name, different dom/codom) raise an error.
+"""
+function merge_schemas(schemas::Vector{<:Catlab.BasicSchema{Symbol}})
+  isempty(schemas) && error("Cannot merge empty list of schemas")
+  length(schemas) == 1 && return first(schemas)
+  
+  all_obs = Symbol[]
+  all_homs = Tuple{Symbol,Symbol,Symbol}[]
+  all_attrtypes = Symbol[]
+  all_attrs = Tuple{Symbol,Symbol,Symbol}[]
+  
+  hom_sigs = Dict{Symbol, Tuple{Symbol,Symbol}}()
+  attr_sigs = Dict{Symbol, Tuple{Symbol,Symbol}}()
+  
+  for S in schemas
+    for o in objects(S)
+      o ∉ all_obs && push!(all_obs, o)
+    end
+    for at in attrtypes(S)
+      at ∉ all_attrtypes && push!(all_attrtypes, at)
+    end
+    for h in homs(S)
+      name, d, c = h
+      if haskey(hom_sigs, name)
+        prev = hom_sigs[name]
+        prev == (d, c) || error(
+          "Schema conflict: hom '$name' has signature ($d→$c) in one rule " *
+          "but ($(prev[1])→$(prev[2])) in another")
+      else
+        hom_sigs[name] = (d, c)
+        push!(all_homs, h)
+      end
+    end
+    for a in attrs(S)
+      name, d, c = a
+      if haskey(attr_sigs, name)
+        prev = attr_sigs[name]
+        prev == (d, c) || error(
+          "Schema conflict: attr '$name' has signature ($d→$c) in one rule " *
+          "but ($(prev[1])→$(prev[2])) in another")
+      else
+        attr_sigs[name] = (d, c)
+        push!(all_attrs, a)
+      end
+    end
+  end
+  
+  Catlab.BasicSchema{Symbol}(all_obs, all_homs, all_attrtypes, all_attrs, 
+    Tuple{Union{Nothing, Symbol}, Symbol, Symbol, Tuple{Tuple{Vararg{Symbol}}, Tuple{Vararg{Symbol}}}}[])
+end
+
+"""
+    infer_schema(rules::Vector{ABMRule}; dyn=[])
+
+Infer the combined schema from a collection of ABM rules (and optional flows)
+by merging (taking the colimit of) all rule/flow pattern schemas.
+
+Raises an error if any two rules have conflicting schema elements 
+(same name but different signatures).
+"""
+function infer_schema(rules::Vector{ABMRule}; dyn::Vector{ABMFlow}=ABMFlow[])
+  schemas = Catlab.BasicSchema{Symbol}[rule_schema(r) for r in rules]
+  for f in dyn
+    push!(schemas, flow_schema(f))
+  end
+  merge_schemas(schemas)
+end
+
+"""
+    is_subschema(sub::BasicSchema{Symbol}, sup::BasicSchema{Symbol})
+
+Check whether `sub` is a sub-schema of `sup`: every object, hom, attr, and 
+attrtype in `sub` must be present (with matching signature) in `sup`.
+
+Returns `(ok::Bool, reason::String)`.
+"""
+function is_subschema(sub::Catlab.BasicSchema{Symbol}, sup::Catlab.BasicSchema{Symbol})
+  sup_obs = Set(objects(sup))
+  for o in objects(sub)
+    o ∈ sup_obs || return (false, "Object '$o' not in target schema")
+  end
+  sup_ats = Set(attrtypes(sup))
+  for at in attrtypes(sub)
+    at ∈ sup_ats || return (false, "AttrType '$at' not in target schema")
+  end
+  sup_homs = Set(homs(sup))
+  for h in homs(sub)
+    h ∈ sup_homs || return (false, "Hom '$(h[1])' ($(h[2])→$(h[3])) not in target schema")
+  end
+  sup_attrs = Set(attrs(sup))
+  for a in attrs(sub)
+    a ∈ sup_attrs || return (false, "Attr '$(a[1])' ($(a[2])→$(a[3])) not in target schema")
+  end
+  return (true, "")
+end
+
+"""
+    validate_schema(rules::Vector{ABMRule}, schema::BasicSchema; dyn=[])
+
+Validate that all rules (and optional flows) have patterns whose schemas 
+are sub-schemas of the declared `schema`.
+
+Raises an error if any rule's schema is not compatible.
+"""
+function validate_schema(rules::Vector{ABMRule}, schema::Catlab.BasicSchema{Symbol};
+                         dyn::Vector{ABMFlow}=ABMFlow[])
+  for (i, r) in enumerate(rules)
+    rs = rule_schema(r)
+    ok, reason = is_subschema(rs, schema)
+    ok || error("Rule $(something(nameof(r), i)): $reason")
+  end
+  for (i, f) in enumerate(dyn)
+    fs = flow_schema(f)
+    ok, reason = is_subschema(fs, schema)
+    ok || error("Flow $(something(f.name, i)): $reason")
+  end
+  return schema
+end
+
 # Accessing an IncHomSet
 const KeyType = Union{Pair{Int, Int},        # connected comp. homset
                       Vector{Pair{Int,Int}}} # multi-component homset
@@ -282,15 +415,29 @@ Policy for handling simultaneous events (ties).
 
 """
 An agent-based model.
+
+Optionally accepts a `schema` keyword argument:
+- If provided, validates that all rules/flows are compatible with the schema.
+- If omitted, the schema is inferred from the rules/flows (identifying by name).
 """
 @struct_hash_equal struct ABM
   rules::Vector{ABMRule}
   dyn::Vector{ABMFlow}
   names::Dict{Symbol, Int}
   tiepolicy::TiePolicy
-  function ABM(rules, dyn=[]; tiepolicy::TiePolicy=TieBreak) 
+  schema::Maybe{Catlab.BasicSchema{Symbol}}
+  function ABM(rules, dyn=[]; tiepolicy::TiePolicy=TieBreak, schema=nothing) 
     names = Dict(n=>i for (i,n) in enumerate(nameof.(rules)) if !isnothing(n))
-    new(rules, dyn, names, tiepolicy)
+    rs = collect(ABMRule, rules)
+    ds = collect(ABMFlow, dyn)
+    s = if !isnothing(schema)
+      validate_schema(rs, schema; dyn=ds)
+    elseif !isempty(rs) || !isempty(ds)
+      infer_schema(rs; dyn=ds)
+    else
+      nothing
+    end
+    new(rs, ds, names, tiepolicy, s)
   end
 end
 
