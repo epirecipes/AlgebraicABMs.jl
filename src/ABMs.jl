@@ -3,7 +3,8 @@ module ABMs
 
 export ABM, ABMRule, run!, DiscreteHazard, ContinuousHazard, FullClosure, 
        ClosureState, ClosureTime, RawODE, ABMFlow, filter, push!, copy, length,
-       Observable, Traj, TiePolicy, TieBreak, TieRandom, TieError
+       Observable, Traj, TiePolicy, TieBreak, TieRandom, TieError,
+       RuntimeABM, Intervention, refresh_clocks!
 
 using Distributions, CompetingClocks, Random
 using DataStructures: DefaultDict
@@ -412,6 +413,74 @@ Base.getindex(rt::RuntimeABM, i::Int) = rt.clocks[i]
 Base.getindex(rt::RuntimeABM, n::Symbol) = rt.clocks[rt.names[n]]
 
 """
+    refresh_clocks!(rt::RuntimeABM, abm::ABM)
+
+Rebuild the incremental hom-sets and re-initialize all clocks in the sampler
+after external modification of `rt.state`. Call this after manually changing the
+state between segmented `run!` calls.
+
+# Example
+```julia
+rt = RuntimeABM(abm, init)
+traj = run!(abm, rt, Traj(init); maxtime=10)
+# Manually modify state
+add_parts!(rt.state, :V, 5)
+refresh_clocks!(rt, abm)
+traj = run!(abm, rt, traj; maxtime=20)
+```
+"""
+function refresh_clocks!(rt::RuntimeABM, abm::ABM)
+  for i in eachindex(abm.rules)
+    rt.clocks[i] = init_homset(abm.rules[i], rt.state, additions(abm))
+  end
+  for (key, _) in collect(rt.sampler.transition_entry)
+    disable!(rt.sampler, key, rt.tnow)
+  end
+  for (i, (pat, homset)) in enumerate(zip(pattern_type.(abm.rules), rt.clocks))
+    kv = if homset isa ExplicitHomSet
+      pairs(homset)
+    else
+      if pat isa EmptyP || all(>(0), nparts.(Ref(rt.state), keys(pat)))
+        [nothing => create(rt.state)]
+      else
+        []
+      end
+    end
+    for (key, val) in kv
+      haz = get_hazard(pat, val, rt.tnow, abm.rules[i].timer)
+      enable!(rt.sampler, i => key, haz, rt.tnow, rt.tnow, rt.rng)
+    end
+  end
+  return rt
+end
+
+"""
+    Intervention(time, action)
+    Intervention(predicate, action; name=nothing)
+
+A scheduled or conditional intervention applied during simulation.
+
+- **Scheduled**: `Intervention(5.0, state -> add_parts!(state, :V, 10))`
+  fires at t=5.0.
+- **Conditional**: `Intervention(state -> nparts(state, :V) > 100, state -> ...)`  
+  fires when the predicate becomes true (checked after each event).
+"""
+struct Intervention
+  time::Maybe{Float64}
+  predicate::Maybe{Function}
+  action::Function
+  name::Maybe{Symbol}
+end
+
+Intervention(time::Real, action::Function; name=nothing) = 
+  Intervention(Float64(time), nothing, action, name)
+Intervention(predicate::Function, action::Function; name=nothing) = 
+  Intervention(nothing, predicate, action, name)
+
+is_scheduled(iv::Intervention) = !isnothing(iv.time)
+is_conditional(iv::Intervention) = !isnothing(iv.predicate)
+
+"""
 Construct an ODE for a given ACSet state. For each flow, find all matches of the 
 flow's pattern in the state. Each match contributes ODE variables corresponding 
 to the flow's `mapping`. The returned `probmap` tracks which (AttrType, part_index) 
@@ -638,19 +707,23 @@ Run an ABM, creating a fresh runtime + trajectory.
 - `save_every` — if set, record observables at regular time intervals
 - `record_history` — if `true`, store rewrite spans in trajectory (default: `true`)
 - `dt` — timestep for checking discrete events when running ODE dynamics
+- `interventions` — vector of `Intervention`s applied during simulation
 """
 function run!(abm::ABM, init::T; save=_->nothing, maxevent=MAXEVENT, 
               maxtime=Inf, dt=0.1, observables::Vector{Observable}=Observable[],
               save_every::Maybe{Float64}=nothing, record_history::Bool=true,
+              interventions::Vector{Intervention}=Intervention[],
               kw...) where T<:ACSet 
   run!(abm::ABM, RuntimeABM(abm, init; kw...), Traj(init); 
-       save, maxtime, maxevent, dt, observables, save_every, record_history)
+       save, maxtime, maxevent, dt, observables, save_every, record_history,
+       interventions)
 end
 
 function run!(abm::ABM, rt::RuntimeABM, output::Traj;
               save=_->nothing, maxevent=MAXEVENT, maxtime=Inf, dt=0.1,
               observables::Vector{Observable}=Observable[],
-              save_every::Maybe{Float64}=nothing, record_history::Bool=true)
+              save_every::Maybe{Float64}=nothing, record_history::Bool=true,
+              interventions::Vector{Intervention}=Intervention[])
   maxevent = isinf(maxtime) ? maxevent : typemax(Int)
   next_snapshot_time = isnothing(save_every) ? Inf : save_every
   has_observables = !isempty(observables)
@@ -676,16 +749,42 @@ function run!(abm::ABM, rt::RuntimeABM, output::Traj;
     enable!(rt.sampler, rule_id => key, haz, rt.tnow, rt.tnow, rt.rng)
   end
 
+  # Track which interventions have fired (for scheduled ones)
+  fired_interventions = Set{Int}()
+
   # Main loop
   while rt.nevent < maxevent && rt.tnow < maxtime
     # TODO: isempty(abm.dyn) should be check that all flows sum to 0 
     if length(rt.sampler) == 0 && isempty(abm.dyn)
-      @info "Stochastic scheduling algorithm ran out of events"
-      return output
+      has_pending = any(enumerate(interventions)) do (i, iv)
+        is_scheduled(iv) && i ∉ fired_interventions && iv.time <= maxtime
+      end
+      if !has_pending
+        @info "Stochastic scheduling algorithm ran out of events"
+        return output
+      end
     end
 
     # Determine next stochastic event time (Inf if no stochastic events)
     new_time = length(rt.sampler) > 0 ? first(next(rt.sampler, rt.tnow, rt.rng)) : Inf
+
+    # Check for scheduled interventions that fire before the next stochastic event
+    intervention_fired = false
+    for (i, iv) in enumerate(interventions)
+      is_scheduled(iv) || continue
+      i ∈ fired_interventions && continue
+      if iv.time <= min(new_time, maxtime) && iv.time >= rt.tnow
+        rt.tnow = iv.time
+        iv.action(rt.state)
+        push!(fired_interventions, i)
+        iname = isnothing(iv.name) ? "intervention_$i" : string(iv.name)
+        @debug "Intervention '$iname' applied at t=$(rt.tnow)"
+        refresh_clocks!(rt, abm)
+        intervention_fired = true
+        break
+      end
+    end
+    intervention_fired && continue
 
     if !isempty(abm.dyn) && rt.tnow + dt < new_time 
       # ODE integration branch: integrate continuous dynamics in steps of dt
@@ -867,6 +966,17 @@ function run!(abm::ABM, rt::RuntimeABM, output::Traj;
       # Rebuild ODE problem if flows exist (state topology may have changed)
       if !isempty(abm.dyn)
         (rt.prob, rt.probmap, rt.probdict) = remake_prob(abm, rt.state, rt.tnow)
+      end
+
+      # Check conditional interventions after events execute
+      for (i, iv) in enumerate(interventions)
+        is_conditional(iv) || continue
+        if iv.predicate(rt.state)
+          iv.action(rt.state)
+          iname = isnothing(iv.name) ? "cond_intervention_$i" : string(iv.name)
+          @debug "Conditional intervention '$iname' triggered at t=$(rt.tnow)"
+          refresh_clocks!(rt, abm)
+        end
       end
     end
   end

@@ -6,7 +6,7 @@ using Test
 using AlgebraicABMs
 using Catlab, AlgebraicRewriting
 
-using AlgebraicABMs.ABMs: RegularP, EmptyP, RepresentableP, RuntimeABM
+using AlgebraicABMs.ABMs: RegularP, EmptyP, RepresentableP, RuntimeABM, Traj, Intervention
 using AlgebraicRewriting.Incremental.IncrementalCC: match_vect
 
 # L = ∅, I = ∅, R = •↺
@@ -142,6 +142,52 @@ view(traj, graphviz_write)
     abm = ABM([dup1]; tiepolicy=TieError)
     traj = run!(abm, Graph(1), maxevent=1)
     @test nparts(codom(right(last(traj.hist))), :V) == 2
+  end
+end
+
+
+# Interventions
+##################
+
+@testset "Interventions" begin
+  dup_rule = ABMRule(:dup, Rule(id(Graph(1)), homomorphism(Graph(1), Graph(2); initial=(V=[1],))), DiscreteHazard(1.))
+
+  @testset "Scheduled intervention" begin
+    iv = Intervention(0.5, state -> add_parts!(state, :V, 5); name=:add5)
+    abm = ABM([dup_rule])
+    traj = run!(abm, Graph(1); maxtime=0.9, interventions=[iv])
+  end
+
+  @testset "Segmented run with refresh_clocks!" begin
+    abm = ABM([dup_rule])
+    rt = RuntimeABM(abm, Graph(1))
+    traj = run!(abm, rt, Traj(Graph(1)); maxevent=1)
+    @test nparts(rt.state, :V) == 2
+    add_parts!(rt.state, :V, 3)
+    @test nparts(rt.state, :V) == 5
+    refresh_clocks!(rt, abm)
+    traj2 = run!(abm, rt, traj; maxevent=2)
+    @test nparts(rt.state, :V) > 5
+  end
+
+  @testset "Conditional intervention" begin
+    iv = Intervention(
+      state -> nparts(state, :V) >= 3,
+      state -> rem_part!(state, :V, 1);
+      name=:trim
+    )
+    abm = ABM([dup_rule])
+    rt = RuntimeABM(abm, Graph(2))
+    traj = run!(abm, rt, Traj(Graph(2)); maxevent=2, interventions=[iv])
+    @test nparts(rt.state, :V) >= 2
+  end
+
+  @testset "Scheduled intervention at exact time" begin
+    iv = Intervention(1.0, state -> add_parts!(state, :V, 10); name=:add10)
+    abm = ABM([dup_rule])
+    rt = RuntimeABM(abm, Graph(1))
+    traj = run!(abm, rt, Traj(Graph(1)); maxtime=1.5, interventions=[iv])
+    @test nparts(rt.state, :V) > 10
   end
 end
 
