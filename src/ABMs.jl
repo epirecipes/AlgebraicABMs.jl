@@ -6,7 +6,7 @@ export ABM, ABMRule, run!, DiscreteHazard, ContinuousHazard, FullClosure,
 
 using Distributions, CompetingClocks, Random
 using DataStructures: DefaultDict
-using DifferentialEquations: ODEProblem
+using DifferentialEquations: ODEProblem, solve, Tsit5
 using StructEquality
 
 using Catlab, AlgebraicRewriting
@@ -356,9 +356,9 @@ mutable struct RuntimeABM
   const sampler::SSA # stochastic simulation algorithm
   const rng::Distributions.AbstractRNG
   const names::Dict{Symbol, Int}
-  const prob::ODEProblem
-  const probmap::Vector{Pair{Symbol, Int}}
-  const probdict::Dict{Symbol, Dict{Int, Int}}
+  prob::ODEProblem
+  probmap::Vector{Pair{Symbol, Int}}
+  probdict::Dict{Symbol, Dict{Int, Int}}
 
   function RuntimeABM(abm::ABM, init::T; sampler=default_sampler) where T<:ACSet
     # Create the runtime
@@ -398,11 +398,105 @@ Base.getindex(rt::RuntimeABM, i::Int) = rt.clocks[i]
 Base.getindex(rt::RuntimeABM, n::Symbol) = rt.clocks[rt.names[n]]
 
 """
-Construct an ODE for a given ACSet state. Return a mapping which allows to go from index to AttrType+index. 
+Construct an ODE for a given ACSet state. For each flow, find all matches of the 
+flow's pattern in the state. Each match contributes ODE variables corresponding 
+to the flow's `mapping`. The returned `probmap` tracks which (AttrType, part_index) 
+each ODE variable corresponds to, and `probdict` provides reverse lookup.
 """
 function mk_prob(abm::ABM, state::ACSet)
   isempty(abm.dyn) && return (ODEProblem((_,_,_,_)->0, 0, (0.,1.)), [], Dict())
-  error("HERE")
+  
+  probmap = Pair{Symbol, Int}[]       # ODE index → (attr_type, part_index)
+  probdict = Dict{Symbol, Dict{Int, Int}}()  # attr_type → part_index → ODE index
+  dynam_fns = Function[]              # dynamics function for each ODE variable
+
+  S = acset_schema(state)
+  # Build lookup: attr_type_symbol → [(attr_name, object_name)]
+  attr_lookup = Dict{Symbol, Vector{Tuple{Symbol, Symbol}}}()
+  for (aname, ob, atype) in attrs(S)
+    push!(get!(attr_lookup, atype, Tuple{Symbol,Symbol}[]), (aname, ob))
+  end
+
+  for flow in abm.dyn
+    matches = homomorphisms(flow.pat, state)
+    for m in matches
+      for (map_idx, (attr_sym, pat_idx)) in enumerate(flow.mapping)
+        haskey(attr_lookup, attr_sym) || continue
+        for (aname, ob) in attr_lookup[attr_sym]
+          found = false
+          for p in parts(flow.pat, ob)
+            val = flow.pat[p, aname]
+            if val isa AttrVar && val.val == pat_idx
+              state_part = m[ob](p)
+              if !haskey(probdict, attr_sym)
+                probdict[attr_sym] = Dict{Int, Int}()
+              end
+              if !haskey(probdict[attr_sym], state_part)
+                push!(probmap, attr_sym => state_part)
+                probdict[attr_sym][state_part] = length(probmap)
+                push!(dynam_fns, flow.dyn.dynam[map_idx])
+              end
+              found = true
+              break
+            end
+          end
+          found && break
+        end
+      end
+    end
+  end
+  
+  isempty(probmap) && return (ODEProblem((_,_,_,_)->0, 0, (0.,1.)), probmap, probdict)
+  
+  # Build initial condition from current state attribute values
+  u0 = Float64[]
+  for (attr_sym, state_part) in probmap
+    for (aname, ob) in attr_lookup[attr_sym]
+      push!(u0, Float64(state[state_part, aname]))
+      break
+    end
+  end
+  
+  # Build the ODE function
+  fns = copy(dynam_fns)
+  function ode_f!(du, u, p, t)
+    for i in eachindex(du)
+      du[i] = fns[i](u[i])
+    end
+  end
+  
+  prob = ODEProblem(ode_f!, u0, (0., Inf))
+  return (prob, probmap, probdict)
+end
+
+"""
+Write ODE solution values back into the ACSet state attributes.
+"""
+function write_ode_to_state!(state::ACSet, u::AbstractVector, 
+                             probmap::Vector{Pair{Symbol, Int}})
+  S = acset_schema(state)
+  attr_lookup = Dict{Symbol, Tuple{Symbol, Symbol}}()
+  for (aname, ob, atype) in attrs(S)
+    attr_lookup[atype] = (aname, ob)
+  end
+  for (i, (attr_sym, state_part)) in enumerate(probmap)
+    aname, ob = attr_lookup[attr_sym]
+    set_subpart!(state, state_part, aname, u[i])
+  end
+end
+
+"""
+Rebuild the ODE problem after a rewrite event changes the state.
+Returns updated (prob, probmap, probdict).
+"""
+function remake_prob(abm::ABM, state::ACSet, tnow::Float64)
+  (prob, probmap, probdict) = mk_prob(abm, state)
+  # Remap tspan to start from current time
+  if prob.u0 isa Number && prob.u0 == 0
+    return (prob, probmap, probdict)
+  end
+  prob = ODEProblem(prob.f, prob.u0, (tnow, Inf))
+  return (prob, probmap, probdict)
 end
 
 """
@@ -447,6 +541,17 @@ end
 get_match(::RegularP, ::ACSet, ::ACSet, hs::ExplicitHomSet, key::KeyType) = hs[key]
 
 """
+Refresh a match morphism's attribute bindings after ODE integration has changed 
+attribute values in the state. Keeps the same combinatorial mapping, recomputes
+the attribute component to match the current state.
+"""
+function refresh_match(m::ACSetTransformation, state::ACSet)
+  S = acset_schema(dom(m))
+  initial = NamedTuple(Dict(o => collect(m[o]) for o in ob(S)))
+  homomorphism(dom(m), state; initial)
+end
+
+"""
 A trajectory of an ABM: each event time and result of `save`.
 """
 @struct_hash_equal struct Traj
@@ -479,9 +584,9 @@ save - function applied to the ACSet state to produce the data that gets stored 
 dt - timestep for checking discrete events when running ODE dynamics.
 """
 function run!(abm::ABM, init::T; save=_->nothing, maxevent=MAXEVENT, 
-              maxtime=Inf, kw...) where T<:ACSet 
+              maxtime=Inf, dt=0.1, kw...) where T<:ACSet 
   run!(abm::ABM, RuntimeABM(abm, init; kw...), Traj(init); 
-       save, maxtime, maxevent)
+       save, maxtime, maxevent, dt)
 end
 
 function run!(abm::ABM, rt::RuntimeABM, output::Traj;
@@ -508,9 +613,50 @@ function run!(abm::ABM, rt::RuntimeABM, output::Traj;
       return output
     end
 
-    new_time = first(next(rt.sampler, rt.tnow, rt.rng))
-    if !isempty(abm.dyn) && dt < new_time 
-      error("HERE")
+    # Determine next stochastic event time (Inf if no stochastic events)
+    new_time = length(rt.sampler) > 0 ? first(next(rt.sampler, rt.tnow, rt.rng)) : Inf
+
+    if !isempty(abm.dyn) && rt.tnow + dt < new_time 
+      # ODE integration branch: integrate continuous dynamics in steps of dt
+      # until the next stochastic event fires (or maxtime is reached).
+      # We keep ODE values in rt.prob.u0 and only write to state at the end,
+      # to avoid invalidating stored match morphisms during integration.
+      target_time = min(new_time, maxtime)
+      while rt.tnow + dt < target_time && rt.tnow < maxtime
+        t_start = rt.tnow
+        t_end = min(rt.tnow + dt, target_time)
+        if rt.prob.u0 isa AbstractVector && !isempty(rt.prob.u0)
+          local sol = solve(
+            ODEProblem(rt.prob.f, rt.prob.u0, (t_start, t_end)),
+            Tsit5(); save_everystep=false
+          )
+          rt.prob = ODEProblem(rt.prob.f, sol.u[end], (t_end, Inf))
+        end
+        rt.tnow = t_end
+
+        # Check if a stochastic event now fires sooner
+        if length(rt.sampler) > 0
+          new_time = first(next(rt.sampler, rt.tnow, rt.rng))
+          new_time <= rt.tnow + dt && break
+          target_time = min(new_time, maxtime)
+        end
+      end
+      # Integrate the final segment up to the event time (or maxtime)
+      t_final = min(new_time, maxtime)
+      if rt.prob.u0 isa AbstractVector && !isempty(rt.prob.u0) && t_final - rt.tnow > 1e-12
+        local sol = solve(
+          ODEProblem(rt.prob.f, rt.prob.u0, (rt.tnow, t_final)),
+          Tsit5(); save_everystep=false
+        )
+        rt.prob = ODEProblem(rt.prob.f, sol.u[end], (t_final, Inf))
+      end
+      rt.tnow = t_final
+      # Write ODE values back to state
+      if rt.prob.u0 isa AbstractVector && !isempty(rt.prob.u0)
+        write_ode_to_state!(rt.state, rt.prob.u0, rt.probmap)
+      end
+      # If there are no stochastic events, just continue the loop
+      length(rt.sampler) == 0 && continue
     else
       # Get next event + unpack data
       events::Vector{Pair{Int,Maybe{KeyType}}} = pops!(rt) # updates the clock time
@@ -532,6 +678,10 @@ function run!(abm::ABM, rt::RuntimeABM, output::Traj;
         # If RegularPattern, we have an explicit match, otherwise randomly pick one
         m = get_match(pattern_type(rule), pattern(rule), rt.state, clocks, key; 
                       basis=basis(rule))
+        # Refresh attribute bindings if ODE integration changed attribute values
+        if !isempty(abm.dyn)
+          m = refresh_match(m, rt.state)
+        end
         # bring the match 'up to speed' given the previous (simultanous) updates
         for (l, r) in first.(update_data)
           m = pull_back(l, m) ⋅ r
@@ -600,6 +750,10 @@ function run!(abm::ABM, rt::RuntimeABM, output::Traj;
         if haskey(rt.clocks[event], key)
           enable!′(rt.clocks[event][key], event, key)
         end
+      end
+      # Rebuild ODE problem if flows exist (state topology may have changed)
+      if !isempty(abm.dyn)
+        (rt.prob, rt.probmap, rt.probdict) = remake_prob(abm, rt.state, rt.tnow)
       end
     end
   end
