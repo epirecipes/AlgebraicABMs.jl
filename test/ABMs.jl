@@ -108,6 +108,44 @@ traj = run!(abm, Graph(3); maxtime=3);
 view(traj, graphviz_write)
 
 
+# Tie-breaking policy
+#######################
+
+@testset "TiePolicy" begin
+  # Two rules firing at t=1, both duplicating a vertex
+  g1, g2 = Graph(1), Graph(2)
+  r_map = homomorphism(g1, g2; initial=(V=[1],))
+  dup1 = ABMRule(:dup1, Rule(id(g1), r_map), DiscreteHazard(1.))
+  dup2 = ABMRule(:dup2, Rule(id(g1), r_map), DiscreteHazard(1.))
+
+  @testset "TieBreak (default)" begin
+    abm = ABM([dup1, dup2])
+    @test abm.tiepolicy == TieBreak
+    traj = run!(abm, Graph(1), maxevent=1)
+    @test nparts(codom(right(last(traj.hist))), :V) > 1
+  end
+
+  @testset "TieRandom" begin
+    abm = ABM([dup1, dup2]; tiepolicy=TieRandom)
+    @test abm.tiepolicy == TieRandom
+    traj = run!(abm, Graph(1), maxevent=1)
+    @test nparts(codom(right(last(traj.hist))), :V) > 1
+  end
+
+  @testset "TieError" begin
+    abm = ABM([dup1, dup2]; tiepolicy=TieError)
+    @test abm.tiepolicy == TieError
+    @test_throws ErrorException run!(abm, Graph(1), maxevent=1)
+  end
+
+  @testset "Single rule no error" begin
+    abm = ABM([dup1]; tiepolicy=TieError)
+    traj = run!(abm, Graph(1), maxevent=1)
+    @test nparts(codom(right(last(traj.hist))), :V) == 2
+  end
+end
+
+
 # ODEs
 #####################
 using AlgebraicABMs, AlgebraicRewriting, Catlab, DifferentialEquations

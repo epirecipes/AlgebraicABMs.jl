@@ -3,7 +3,7 @@ module ABMs
 
 export ABM, ABMRule, run!, DiscreteHazard, ContinuousHazard, FullClosure, 
        ClosureState, ClosureTime, RawODE, ABMFlow, filter, push!, copy, length,
-       Observable, Traj
+       Observable, Traj, TiePolicy, TieBreak, TieRandom, TieError
 
 using Distributions, CompetingClocks, Random
 using DataStructures: DefaultDict
@@ -268,26 +268,39 @@ const KeyType = Union{Pair{Int, Int},        # connected comp. homset
                       Vector{Pair{Int,Int}}} # multi-component homset
 
 """
+Policy for handling simultaneous events (ties).
+
+- `TieBreak`: Execute events in arbitrary order; later events may be invalidated 
+  by earlier ones. This is the default and matches previous behavior.
+- `TieRandom`: Shuffle event order randomly before sequential execution.
+  Useful when the arbitrary ordering has systematic bias.
+- `TieError`: Error if more than one event fires simultaneously.
+  Useful for models where ties should never occur.
+"""
+@enum TiePolicy TieBreak TieRandom TieError
+
+"""
 An agent-based model.
 """
 @struct_hash_equal struct ABM
   rules::Vector{ABMRule}
   dyn::Vector{ABMFlow}
   names::Dict{Symbol, Int}
-  function ABM(rules, dyn=[]) 
+  tiepolicy::TiePolicy
+  function ABM(rules, dyn=[]; tiepolicy::TiePolicy=TieBreak) 
     names = Dict(n=>i for (i,n) in enumerate(nameof.(rules)) if !isnothing(n))
-    new(rules, dyn, names)
+    new(rules, dyn, names, tiepolicy)
   end
 end
 
 additions(abm::ABM) = right.(abm.rules)
 
-(F::Migrate)(abm::ABM) = ABM(F.(abm.rules), abm.dyn)
+(F::Migrate)(abm::ABM) = ABM(F.(abm.rules), abm.dyn; tiepolicy=abm.tiepolicy)
 
 Base.getindex(abm::ABM, i::Int) = abm.rules[i]
 Base.getindex(abm::ABM, n::Symbol) = abm.rules[abm.names[n]]
 
-Base.filter(f, abm::ABM) = filter(f, abm.rules) |> ABM
+Base.filter(f, abm::ABM) = ABM(filter(f, abm.rules); tiepolicy=abm.tiepolicy)
 
 function Base.push!(abm::ABM, r::ABMRule; overwrite=false)
   if haskey(abm.names, r.name)
@@ -727,6 +740,14 @@ function run!(abm::ABM, rt::RuntimeABM, output::Traj;
 
       # TODO some sort of check that the events are consistent with each other
       # or a randomization of their order
+      if length(events) > 1
+        if abm.tiepolicy == TieError
+          error("TieError policy: $(length(events)) simultaneous events at t=$(rt.tnow)")
+        elseif abm.tiepolicy == TieRandom
+          shuffle!(rt.rng, events)
+        end
+        # TieBreak: keep arbitrary order (default)
+      end
 
       update_data = [] # use to update incremental hom sets afterwards
       # execute all the events
