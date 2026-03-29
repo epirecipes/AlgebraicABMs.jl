@@ -58,6 +58,7 @@ makedocs(
       "generated/sir_petri.md",
       "generated/game_of_life.md",
       "generated/lotka_volterra.md",
+      "generated/network_sir.md",
     ],
     "Library Reference"=>"api.md",
   ]
