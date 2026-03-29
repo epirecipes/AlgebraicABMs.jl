@@ -2,7 +2,8 @@
 module ABMs
 
 export ABM, ABMRule, run!, DiscreteHazard, ContinuousHazard, FullClosure, 
-       ClosureState, ClosureTime, RawODE, ABMFlow, filter, push!, copy, length
+       ClosureState, ClosureTime, RawODE, ABMFlow, filter, push!, copy, length,
+       Observable, Traj
 
 using Distributions, CompetingClocks, Random
 using DataStructures: DefaultDict
@@ -447,15 +448,47 @@ end
 get_match(::RegularP, ::ACSet, ::ACSet, hs::ExplicitHomSet, key::KeyType) = hs[key]
 
 """
+An observable quantity: a pattern whose match count is tracked over time.
+
+    Observable(name::Symbol, pattern::ACSet)
+
+Creates an observable that counts the number of homomorphisms from `pattern` 
+into the current state at each logging point.
+
+# Example
+```julia
+obs_V = Observable(:vertices, @acset Graph begin V=1 end)
+obs_E = Observable(:edges, @acset Graph begin V=2; E=1; src=1; tgt=2 end)
+traj = run!(abm, init; observables=[obs_V, obs_E], save_every=1.0)
+traj.snapshots  # Vector of (time, Dict(:vertices => count, :edges => count))
+```
+"""
+struct Observable
+  name::Symbol
+  pattern::ACSet
+end
+
+"""Evaluate an observable by counting homomorphisms from pattern into state."""
+(obs::Observable)(state::ACSet) = length(homomorphisms(obs.pattern, state))
+
+"""
 A trajectory of an ABM: each event time and result of `save`.
+
+# Fields
+- `init::ACSet` — initial state
+- `events` — vector of `(time, rule_id, rule_name, saved_data)` tuples
+- `hist` — vector of rewrite spans (empty when `record_history=false`)
+- `snapshots` — vector of `(time, Dict{Symbol,Int})` from observable evaluations
 """
 @struct_hash_equal struct Traj
   init::ACSet
   events::Vector{Tuple{Float64, Int, String, Any}}
   hist::Vector{Span{<:ACSet}}
+  snapshots::Vector{Tuple{Float64, Dict{Symbol, Int}}}
 end
 
-Traj(x::ACSet) = Traj(x, Tuple{Float64, Int, String, Any}[], Span{ACSet}[])
+Traj(x::ACSet) = Traj(x, Tuple{Float64, Int, String, Any}[], Span{ACSet}[],
+                       Tuple{Float64, Dict{Symbol, Int}}[])
 
 function Base.push!(t::Traj, tup::Tuple{Float64,Int,String,Any,Span{<:ACSet}}) 
   (τ, rule, rulename, v, sp) = tup
@@ -464,6 +497,11 @@ function Base.push!(t::Traj, tup::Tuple{Float64,Int,String,Any,Span{<:ACSet}})
     "Bad history \n$(codom(left(sp))) \n!= \n$(codom(right(last(t.hist))))"
   )
   push!(t.hist, sp)
+end
+
+function Base.push!(t::Traj, tup::Tuple{Float64,Int,String,Any,Nothing}) 
+  (τ, rule, rulename, v, _) = tup
+  push!(t.events, (τ, rule, rulename, v))
 end
 
 Base.isempty(t::Traj) = isempty(t.events)
@@ -475,23 +513,44 @@ const MAXEVENT = 100
 """
 Run an ABM, creating a fresh runtime + trajectory.
 
-save - function applied to the ACSet state to produce the data that gets stored for every change in the model
-dt - timestep for checking discrete events when running ODE dynamics.
+# Keyword arguments
+- `save` — function applied to the ACSet state to produce data stored per event
+- `maxevent` — maximum number of events before stopping (default: $MAXEVENT)
+- `maxtime` — maximum simulation time (default: Inf)
+- `observables` — vector of `Observable`s to evaluate at logging points
+- `save_every` — if set, record observables at regular time intervals
+- `record_history` — if `true`, store rewrite spans in trajectory (default: `true`)
+- `dt` — timestep for checking discrete events when running ODE dynamics
 """
 function run!(abm::ABM, init::T; save=_->nothing, maxevent=MAXEVENT, 
-              maxtime=Inf, kw...) where T<:ACSet 
+              maxtime=Inf, observables::Vector{Observable}=Observable[],
+              save_every::Maybe{Float64}=nothing, record_history::Bool=true,
+              kw...) where T<:ACSet 
   run!(abm::ABM, RuntimeABM(abm, init; kw...), Traj(init); 
-       save, maxtime, maxevent)
+       save, maxtime, maxevent, observables, save_every, record_history)
 end
 
 function run!(abm::ABM, rt::RuntimeABM, output::Traj;
-              save=_->nothing, maxevent=MAXEVENT, maxtime=Inf, dt=0.1)
+              save=_->nothing, maxevent=MAXEVENT, maxtime=Inf, dt=0.1,
+              observables::Vector{Observable}=Observable[],
+              save_every::Maybe{Float64}=nothing, record_history::Bool=true)
   maxevent = isinf(maxtime) ? maxevent : typemax(Int)
+  next_snapshot_time = isnothing(save_every) ? Inf : save_every
+  has_observables = !isempty(observables)
+
+  # Record initial snapshot if we have observables
+  if has_observables
+    snap = Dict(obs.name => obs(rt.state) for obs in observables)
+    push!(output.snapshots, (rt.tnow, snap))
+  end
+
   # Helper functions that automatically incorporate the runtime `rt`
   getname(rule::Int)::String = 
     string(isnothing(abm.rules[rule].name) ? rule : abm.rules[rule].name)
-  log!(rule::Int, sp::Span) = 
-    push!(output, (rt.tnow, rule, getname(rule), save(rt.state), sp))
+  function log!(rule::Int, sp::Span)
+    logged_sp = record_history ? sp : nothing
+    push!(output, (rt.tnow, rule, getname(rule), save(rt.state), logged_sp))
+  end
   disable!′(key::Pair) = disable!(rt.sampler, key, rt.tnow)
   disable!′(i::Int) = disable!′(i => nothing)
   function enable!′(m::ACSetTransformation, rule_id::Int, key::Maybe{KeyType}=nothing) 
@@ -624,6 +683,15 @@ function run!(abm::ABM, rt::RuntimeABM, output::Traj;
           if !already_enabled
             enable!′(match, event, key)
           end
+        end
+      end
+
+      # Record observable snapshots at save_every intervals
+      if has_observables
+        while rt.tnow >= next_snapshot_time
+          snap = Dict(obs.name => obs(rt.state) for obs in observables)
+          push!(output.snapshots, (next_snapshot_time, snap))
+          next_snapshot_time += save_every
         end
       end
     end
