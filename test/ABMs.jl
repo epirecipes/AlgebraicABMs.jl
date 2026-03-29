@@ -9,6 +9,17 @@ using Catlab, AlgebraicRewriting
 using AlgebraicABMs.ABMs: RegularP, EmptyP, RepresentableP, RuntimeABM
 using AlgebraicRewriting.Incremental.IncrementalCC: match_vect
 
+# Top-level schema definitions for schema inference/validation tests
+# (@acset_type generates `const` which cannot be used inside @testset on Julia 1.12)
+@present SchATest(FreeSchema) begin A::Ob end
+@acset_type ASet(SchATest)
+
+@present SchBTest(FreeSchema) begin B::Ob; C::AttrType; val::Attr(B, C) end
+@acset_type BSet(SchBTest){Int}
+
+@present SchSmallTest(FreeSchema) begin V::Ob end
+@acset_type SmallSet(SchSmallTest)
+
 # L = ∅, I = ∅, R = •↺
 create_loop = ABMRule(
   :CreateLoop,
@@ -132,7 +143,58 @@ init = @acset LSet begin X=2; f=[1.1, 2.2] end
 # res = run!(abm, init, maxevent=2)
 
 
+# Schema inference and validation
+##################################
 
+using AlgebraicABMs.ABMs: infer_schema, validate_schema, rule_schema, is_subschema
+
+@testset "Schema inference" begin
+  # Infer schema from rules that share the same schema
+  s = infer_schema([create_loop, add_loop, rem_loop, rem_edge])
+  @test Set(objects(s)) == Set([:V, :E])
+  @test length(homs(s)) == 2  # src, tgt
+
+  # ABM constructor auto-infers schema
+  abm_inferred = ABM([create_loop, add_loop])
+  @test !isnothing(abm_inferred.schema)
+  @test Set(objects(abm_inferred.schema)) == Set([:V, :E])
+end
+
+@testset "Schema validation" begin
+  # Validate rules against a matching schema
+  graph_schema = rule_schema(add_loop)
+  abm_validated = ABM([create_loop, add_loop]; schema=graph_schema)
+  @test abm_validated.schema == graph_schema
+
+  # Validation should fail with a mismatched schema (LSet schema for Graph rules)
+  wrong_schema = acset_schema(LSet())
+  @test_throws ErrorException ABM([create_loop]; schema=wrong_schema)
+end
+
+@testset "Schema merge across different schemas" begin
+  a1 = @acset ASet begin A=1 end
+  a2 = @acset ASet begin A=2 end
+  rule_a = ABMRule(:rA, Rule(id(a1), homomorphism(a1, a2; initial=(A=[1],))), DiscreteHazard(1.))
+
+  b1 = @acset BSet begin B=1; C=1; val=[AttrVar(1)] end
+  b2 = @acset BSet begin B=2; C=1; val=[AttrVar(1), AttrVar(1)] end
+  rule_b = ABMRule(:rB, Rule(id(b1), homomorphism(b1, b2; initial=(B=[1],))), DiscreteHazard(1.))
+
+  merged = infer_schema([rule_a, rule_b])
+  @test Set(objects(merged)) == Set([:A, :B])
+  @test length(attrs(merged)) == 1  # val
+  @test length(attrtypes(merged)) == 1  # C
+end
+
+@testset "is_subschema" begin
+  s_graph = rule_schema(add_loop)
+  s_graph2 = rule_schema(rem_edge)
+  @test is_subschema(s_graph, s_graph2)[1]  # same schema
+
+  s_small = acset_schema(SmallSet())
+  @test is_subschema(s_small, s_graph)[1]   # V ⊂ {V,E,src,tgt}
+  @test !is_subschema(s_graph, s_small)[1]  # {V,E} ⊄ {V}
+end
 
 
 end # module
