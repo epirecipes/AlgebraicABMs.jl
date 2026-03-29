@@ -108,28 +108,53 @@ traj = run!(abm, Graph(3); maxtime=3);
 view(traj, graphviz_write)
 
 
-# ODEs (IN PROGRESS)
+# ODEs
 #####################
-using AlgebraicABMs, AlgebraicRewriting, Catlab
+using AlgebraicABMs, AlgebraicRewriting, Catlab, DifferentialEquations
+using AlgebraicABMs.ABMs: RuntimeABM
 
-# State of world: a set of free-floating Float64s 
-@present SchLSet(FreeSchema) begin X::Ob; D::AttrType; f::Attr(X, D) end 
-@acset_type LSet(SchLSet){Float64} 
+# State of world: a set of free-floating Float64s
+@present SchLSet(FreeSchema) begin X::Ob; D::AttrType; f::Attr(X, D) end
+@acset_type LSet(SchLSet){Float64}
 
-# Rule: copy a variable
+# Pattern: a single vertex with attribute variable
 v = @acset LSet begin X=1; D=1; f=[AttrVar(1)] end
-v2 = @acset LSet begin X=2; D=1; f=[AttrVar(1), AttrVar(1)] end
-dup_vertex = ABMRule(Rule(id(v), homomorphism(v, v2; initial=(X=[1],))), DiscreteHazard(1.))
 
 # Dynamics: for an individual variable, it grows linearly w/ time
 flow = ABMFlow(v, RawODE([_ -> 1.0]), :Grow, [], [(:D => 1)])
-# Make ABM
-abm = ABM([dup_vertex], [flow])
 
-# Initial state
-init = @acset LSet begin X=2; f=[1.1, 2.2] end
+# Rule: copy a variable
+v2 = @acset LSet begin X=2; D=1; f=[AttrVar(1), AttrVar(1)] end
+dup_vertex = ABMRule(Rule(id(v), homomorphism(v, v2; initial=(X=[1],))), DiscreteHazard(1.))
 
-# res = run!(abm, init, maxevent=2)
+@testset "Pure ODE" begin
+  init = @acset LSet begin X=2; f=[1.0, 2.0] end
+  abm_ode = ABM(ABMRule[], [flow])
+  rt = RuntimeABM(abm_ode, deepcopy(init))
+  run!(abm_ode, rt, AlgebraicABMs.ABMs.Traj(deepcopy(init)); maxtime=2.0, dt=0.5)
+  # Linear growth rate 1.0 for 2 time units: values increase by 2.0
+  @test abs(rt.state[:f][1] - 3.0) < 0.01
+  @test abs(rt.state[:f][2] - 4.0) < 0.01
+end
+
+@testset "ODE accuracy (long)" begin
+  init = @acset LSet begin X=1; f=[5.0] end
+  abm_ode = ABM(ABMRule[], [flow])
+  rt = RuntimeABM(abm_ode, deepcopy(init))
+  run!(abm_ode, rt, AlgebraicABMs.ABMs.Traj(deepcopy(init)); maxtime=10.0, dt=1.0)
+  @test abs(rt.state[:f][1] - 15.0) < 0.01
+end
+
+@testset "Hybrid ODE + Stochastic" begin
+  init = @acset LSet begin X=2; f=[1.0, 2.0] end
+  abm_hybrid = ABM([dup_vertex], [flow])
+  rt = RuntimeABM(abm_hybrid, deepcopy(init))
+  run!(abm_hybrid, rt, AlgebraicABMs.ABMs.Traj(deepcopy(init)); maxtime=1.5, dt=0.1)
+  # At t=1: ODE grew values by 1.0, then duplication fires → more parts
+  @test nparts(rt.state, :X) > 2
+  # All values should have grown from ODE integration
+  @test all(v -> v > 1.0, rt.state[:f])
+end
 
 
 
