@@ -56,6 +56,7 @@ makedocs(
     "Examples"=>Any[
      "generated/showcase.md",
       "generated/sir_petri.md",
+      "generated/contact_rate.md",
       "generated/game_of_life.md",
       "generated/lotka_volterra.md",
     ],
