@@ -9,6 +9,7 @@ using Catlab, AlgebraicRewriting
 using AlgebraicABMs.ABMs: RegularP, EmptyP, RepresentableP, RuntimeABM, Traj, Intervention
 using AlgebraicRewriting.Incremental.IncrementalCC: match_vect
 using Distributions: Exponential
+using Catlab.CategoricalAlgebra.CSets: MarkAsDeleted
 
 # Top-level schema definitions for schema inference/validation tests
 # (@acset_type generates `const` which cannot be used inside @testset on Julia 1.12)
@@ -20,6 +21,12 @@ using Distributions: Exponential
 
 @present SchSmallTest(FreeSchema) begin V::Ob end
 @acset_type SmallSet(SchSmallTest)
+
+# MarkAsDeleted graph type for schedule tests
+@present SchGrphMD(FreeSchema) begin
+  V::Ob; E::Ob; src::Hom(E,V); tgt::Hom(E,V)
+end
+@acset_type GrphMD(SchGrphMD, part_type=MarkAsDeleted)
 
 # L = ∅, I = ∅, R = •↺
 create_loop = ABMRule(
@@ -348,6 +355,47 @@ end
   @test isnothing(abm_no_p.params)
   traj = run!(abm_no_p, G; maxevent=5)
   @test length(traj) >= 5
+end
+
+
+# Schedules
+##################
+
+@testset "ABMSchedule basic" begin
+  z = GrphMD()
+  g1 = @acset GrphMD begin V=1 end
+  add_v_rule = Rule(id(z), create(g1))
+  ra = RuleApp(:add_v, add_v_rule, z)
+  sched = tryrule(ra)
+  
+  abm_sched = ABMSchedule(:add_v_sched, sched, DiscreteHazard(1.))
+  @test nameof(abm_sched) == :add_v_sched
+  
+  abm = ABM(ABMRule[]; schedules=[abm_sched])
+  @test length(abm.schedules) == 1
+  
+  init = @acset GrphMD begin V=2 end
+  traj = run!(abm, init; maxevent=5)
+  @test length(traj) >= 3
+end
+
+@testset "ABMSchedule with rules" begin
+  z = GrphMD()
+  g1 = @acset GrphMD begin V=1 end
+  g2 = @acset GrphMD begin V=2 end
+  
+  h = homomorphism(g1, g2; initial=(V=[1],))
+  dup_rule = ABMRule(:dup, Rule(id(g1), h), ContinuousHazard(0.5))
+  
+  add_v_rule = Rule(id(z), create(g1))
+  ra = RuleApp(:sched_add, add_v_rule, z)
+  sched = tryrule(ra)
+  abm_sched = ABMSchedule(:periodic_add, sched, DiscreteHazard(2.))
+  
+  abm = ABM([dup_rule]; schedules=[abm_sched])
+  init = @acset GrphMD begin V=1 end
+  traj = run!(abm, init; maxevent=5)
+  @test length(traj) >= 3
 end
 
 

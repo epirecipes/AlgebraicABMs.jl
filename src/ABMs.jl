@@ -1,7 +1,7 @@
 
 module ABMs
 
-export ABM, ABMRule, run!, DiscreteHazard, ContinuousHazard, FullClosure, 
+export ABM, ABMRule, ABMSchedule, run!, DiscreteHazard, ContinuousHazard, FullClosure, 
        ClosureState, ClosureTime, ClosureParams, FullClosureParams,
        RawODE, ABMFlow, filter, push!, copy, length, run_scenarios,
        Observable, Traj, TiePolicy, TieBreak, TieRandom, TieError,
@@ -274,6 +274,25 @@ get_matches(r::ABMRule, args...; kw...) =
   ABMRule(F(r.rule), r.timer; basis=F(r.basis), name=r.name)
 
 """
+An ABM event driven by an AlgebraicRewriting Schedule rather than a single rule.
+
+When the timer fires, the entire schedule is executed via `interpret!`. 
+After execution, all hom-sets are rebuilt from scratch since the schedule 
+may perform arbitrary sequences of rewrites.
+
+Requires the initial state ACSet to use `MarkAsDeleted` part type.
+"""
+struct ABMSchedule
+  name::Maybe{Symbol}
+  schedule::Schedule
+  timer::AbsTimer
+end
+
+ABMSchedule(schedule::Schedule, timer::AbsTimer) = ABMSchedule(nothing, schedule, timer)
+
+Base.nameof(s::ABMSchedule) = s.name
+
+"""
 A type which implements AbsDynamics must be able to compiled to an ODE for some 
 set of variables.
 """
@@ -456,8 +475,14 @@ Optionally accepts keyword arguments:
   tiepolicy::TiePolicy
   schema::Maybe{Catlab.BasicSchema{Symbol}}
   params::Any  # NamedTuple, Dict, or nothing
-  function ABM(rules, dyn=[]; tiepolicy::TiePolicy=TieBreak, schema=nothing, params=nothing) 
+  schedules::Vector{ABMSchedule}
+  function ABM(rules, dyn=[]; tiepolicy::TiePolicy=TieBreak, schema=nothing, 
+               params=nothing, schedules::Vector{ABMSchedule}=ABMSchedule[]) 
     names = Dict(n=>i for (i,n) in enumerate(nameof.(rules)) if !isnothing(n))
+    for (j, s) in enumerate(schedules)
+      n = nameof(s)
+      !isnothing(n) && (names[n] = length(rules) + j)
+    end
     rs = collect(ABMRule, rules)
     ds = collect(ABMFlow, dyn)
     s = if !isnothing(schema)
@@ -467,18 +492,18 @@ Optionally accepts keyword arguments:
     else
       nothing
     end
-    new(rs, ds, names, tiepolicy, s, params)
+    new(rs, ds, names, tiepolicy, s, params, schedules)
   end
 end
 
 additions(abm::ABM) = right.(abm.rules)
 
-(F::Migrate)(abm::ABM) = ABM(F.(abm.rules), abm.dyn; tiepolicy=abm.tiepolicy, params=abm.params)
+(F::Migrate)(abm::ABM) = ABM(F.(abm.rules), abm.dyn; tiepolicy=abm.tiepolicy, params=abm.params, schedules=abm.schedules)
 
 Base.getindex(abm::ABM, i::Int) = abm.rules[i]
 Base.getindex(abm::ABM, n::Symbol) = abm.rules[abm.names[n]]
 
-Base.filter(f, abm::ABM) = ABM(filter(f, abm.rules); tiepolicy=abm.tiepolicy, params=abm.params)
+Base.filter(f, abm::ABM) = ABM(filter(f, abm.rules); tiepolicy=abm.tiepolicy, params=abm.params, schedules=abm.schedules)
 
 function Base.push!(abm::ABM, r::ABMRule; overwrite=false)
   if haskey(abm.names, r.name)
@@ -491,7 +516,7 @@ function Base.push!(abm::ABM, r::ABMRule; overwrite=false)
   abm
 end
 
-Base.copy(abm::ABM) = ABM(copy(abm.rules); tiepolicy=abm.tiepolicy, params=abm.params)
+Base.copy(abm::ABM) = ABM(copy(abm.rules); tiepolicy=abm.tiepolicy, params=abm.params, schedules=copy(abm.schedules))
 Base.length(abm::ABM) = length(abm.rules)
 
 """A collection of timers associated at runtime w/ an ABMRule"""
@@ -574,6 +599,19 @@ mutable struct RuntimeABM
         haz = get_hazard(pat, val, 0., abm.rules[i].timer; params=abm.params)
         enable!(rt.sampler, i => key, haz, 0., 0., rt.rng)
       end
+    end
+    # Initialize schedule timers (indices > nrules)
+    nrules = length(abm.rules)
+    for (j, sched) in enumerate(abm.schedules)
+      sched_idx = nrules + j
+      haz = if sched.timer isa AbsHazard
+        sched.timer.val
+      elseif sched.timer isa ClosureTime
+        sched.timer(0.)
+      else
+        error("ABMSchedule timers must not depend on match state")
+      end
+      enable!(rt.sampler, sched_idx => nothing, haz, 0., 0., rt.rng)
     end
     return rt
   end
@@ -1009,8 +1047,16 @@ function run!(abm::ABM, rt::RuntimeABM, output::Traj;
       events::Vector{Pair{Int,Maybe{KeyType}}} = pops!(rt) # updates the clock time
       N = length(rt.sampler)
 
+      nrules = length(abm.rules)
       s = length(events) > 1 ? "s" : ""
-      rname(e) = let r = first(e); n = abm.rules[r].name; isnothing(n) ? r : n end
+      function rname(e) 
+        r = first(e)
+        if r <= nrules
+          n = abm.rules[r].name; isnothing(n) ? r : n
+        else
+          n = abm.schedules[r - nrules].name; isnothing(n) ? "sched_$(r-nrules)" : n
+        end
+      end
       @debug ("Step $(length(output)): Event$s $(join(string.(rname.(events)), ", "))"
               *" | Fired @ t = $(round(rt.tnow, digits=2)) ($N queued)")
 
@@ -1025,9 +1071,54 @@ function run!(abm::ABM, rt::RuntimeABM, output::Traj;
         # TieBreak: keep arbitrary order (default)
       end
 
+      # Separate schedule events from rule events
+      schedule_events = filter(e -> first(e) > nrules, events)
+      rule_events = filter(e -> first(e) <= nrules, events)
+      
+      # Execute schedule events (full state replacement + refresh)
+      schedule_fired = false
+      for (event, _key) in schedule_events
+        sched = abm.schedules[event - nrules]
+        sname = something(nameof(sched), "schedule_$(event - nrules)")
+        @debug "Executing schedule '$sname' at t=$(rt.tnow)"
+        result = interpret!(sched.schedule, rt.state)
+        rt.state = codom(result)
+        schedule_fired = true
+        push!(output, (rt.tnow, event, string(sname), save(rt.state), 
+              Span(id(rt.state), id(rt.state))))
+        # Re-enable schedule timer
+        shaz = if sched.timer isa AbsHazard
+          sched.timer.val
+        elseif sched.timer isa ClosureTime
+          sched.timer(rt.tnow)
+        else
+          error("ABMSchedule timers must not depend on match state")
+        end
+        enable!(rt.sampler, event => nothing, shaz, rt.tnow, rt.tnow, rt.rng)
+      end
+      
+      # If any schedule fired, rebuild all rule hom-sets
+      if schedule_fired
+        for (i, (ruleᵢ, clocksᵢ)) in enumerate(zip(abm.rules, rt.clocks))
+          clocksᵢ isa ExplicitHomSet || continue
+          for k in collect(keys(clocksᵢ))
+            disable!(rt.sampler, i => k, rt.tnow)
+          end
+        end
+        rt.clocks .= init_homset.(abm.rules, Ref(rt.state), Ref(additions(abm)))
+        for (i, (pat, homset)) in enumerate(zip(pattern_type.(abm.rules), rt.clocks))
+          homset isa ExplicitHomSet || continue
+          for (key, val) in pairs(homset)
+            haz = get_hazard(pat, val, rt.tnow, abm.rules[i].timer; params=abm.params)
+            enable!(rt.sampler, i => key, haz, rt.tnow, rt.tnow, rt.rng)
+          end
+        end
+        isempty(rule_events) && continue
+      end
+
       update_data = [] # use to update incremental hom sets afterwards
-      # execute all the events
-      for (event, key) in events
+      # execute all the rule events
+      for (event, key) in rule_events
         rule::ABMRule, clocks::AbsHomSet = abm.rules[event], rt.clocks[event]
         rule′::Rule, rule_type::Symbol = getrule(rule), ruletype(rule)
         # If RegularPattern, we have an explicit match, otherwise randomly pick one
