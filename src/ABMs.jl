@@ -2,7 +2,8 @@
 module ABMs
 
 export ABM, ABMRule, run!, DiscreteHazard, ContinuousHazard, FullClosure, 
-       ClosureState, ClosureTime, RawODE, ABMFlow, filter, push!, copy, length,
+       ClosureState, ClosureTime, ClosureParams, FullClosureParams,
+       RawODE, ABMFlow, filter, push!, copy, length, run_scenarios,
        Observable, Traj, TiePolicy, TieBreak, TieRandom, TieError,
        RuntimeABM, Intervention, refresh_clocks!,
        infer_schema, validate_schema
@@ -63,6 +64,27 @@ struct ClosureState <: StateDependentTimer
 end
 
 (c::ClosureState)(m::ACSetTransformation) = c.val(m)
+
+"""
+A closure which accepts a match morphism and a parameter dict, returning a 
+hazard_rate. This is a timer which depends on the match state and exogenous 
+parameters but not the absolute clock time.
+"""
+struct ClosureParams <: StateDependentTimer
+  val::Function # (ACSetTransformation, params) → hazard_rate
+end
+
+(c::ClosureParams)(m::ACSetTransformation, params) = c.val(m, params)
+
+"""
+A closure which accepts a match morphism, clock time, and a parameter dict, 
+returning a hazard_rate. The most general parameterized timer.
+"""
+struct FullClosureParams <: StateDependentTimer
+  val::Function # (ACSetTransformation, clocktime, params) → hazard_rate
+end
+
+(c::FullClosureParams)(m::ACSetTransformation, t::Float64, params) = c.val(m, t, params)
 
 abstract type AbsHazard <: AbsTimer end
 
@@ -184,16 +206,22 @@ end
 
 # Hazard rates depend on pattern type
 
-get_hazard(::PatternType, m::ACSetTransformation, t::Float64, h::FullClosure) = h(m, t)
+get_hazard(::PatternType, m::ACSetTransformation, t::Float64, h::FullClosure; kw...) = h(m, t)
 
-get_hazard(::PatternType, ::ACSetTransformation, t::Float64, h::ClosureTime) = h(t)
+get_hazard(::PatternType, ::ACSetTransformation, t::Float64, h::ClosureTime; kw...) = h(t)
 
-get_hazard(::PatternType, m::ACSetTransformation, ::Float64, h::ClosureState) = h(m)
+get_hazard(::PatternType, m::ACSetTransformation, ::Float64, h::ClosureState; kw...) = h(m)
 
-get_hazard(::PatternType, ::ACSetTransformation, ::Float64, h::AbsHazard) = h.val
+get_hazard(::PatternType, ::ACSetTransformation, ::Float64, h::AbsHazard; kw...) = h.val
+
+get_hazard(::PatternType, m::ACSetTransformation, ::Float64, h::ClosureParams; params=nothing, kw...) = 
+  h(m, params)
+
+get_hazard(::PatternType, m::ACSetTransformation, t::Float64, h::FullClosureParams; params=nothing, kw...) = 
+  h(m, t, params)
 
 function get_hazard(r::RepresentableP, f::ACSetTransformation, ::Float64, 
-                    h::ContinuousHazard) 
+                    h::ContinuousHazard; kw...) 
    err = "Representable patterns must have simple exponential rules"
    X = codom(f)
    is_exp(h) ? Exponential(h.val.θ/multiplier(r,X)) : error(err)
@@ -414,11 +442,12 @@ Policy for handling simultaneous events (ties).
 @enum TiePolicy TieBreak TieRandom TieError
 
 """
-An agent-based model.
+An agent-based model, optionally parameterized.
 
-Optionally accepts a `schema` keyword argument:
-- If provided, validates that all rules/flows are compatible with the schema.
-- If omitted, the schema is inferred from the rules/flows (identifying by name).
+Optionally accepts keyword arguments:
+- `schema`: validates rules against it if provided, infers from rules if omitted.
+- `tiepolicy`: how to handle simultaneous events (TieBreak, TieRandom, TieError).
+- `params`: a NamedTuple or Dict of exogenous parameters for ClosureParams/FullClosureParams timers.
 """
 @struct_hash_equal struct ABM
   rules::Vector{ABMRule}
@@ -426,7 +455,8 @@ Optionally accepts a `schema` keyword argument:
   names::Dict{Symbol, Int}
   tiepolicy::TiePolicy
   schema::Maybe{Catlab.BasicSchema{Symbol}}
-  function ABM(rules, dyn=[]; tiepolicy::TiePolicy=TieBreak, schema=nothing) 
+  params::Any  # NamedTuple, Dict, or nothing
+  function ABM(rules, dyn=[]; tiepolicy::TiePolicy=TieBreak, schema=nothing, params=nothing) 
     names = Dict(n=>i for (i,n) in enumerate(nameof.(rules)) if !isnothing(n))
     rs = collect(ABMRule, rules)
     ds = collect(ABMFlow, dyn)
@@ -437,18 +467,18 @@ Optionally accepts a `schema` keyword argument:
     else
       nothing
     end
-    new(rs, ds, names, tiepolicy, s)
+    new(rs, ds, names, tiepolicy, s, params)
   end
 end
 
 additions(abm::ABM) = right.(abm.rules)
 
-(F::Migrate)(abm::ABM) = ABM(F.(abm.rules), abm.dyn; tiepolicy=abm.tiepolicy)
+(F::Migrate)(abm::ABM) = ABM(F.(abm.rules), abm.dyn; tiepolicy=abm.tiepolicy, params=abm.params)
 
 Base.getindex(abm::ABM, i::Int) = abm.rules[i]
 Base.getindex(abm::ABM, n::Symbol) = abm.rules[abm.names[n]]
 
-Base.filter(f, abm::ABM) = ABM(filter(f, abm.rules); tiepolicy=abm.tiepolicy)
+Base.filter(f, abm::ABM) = ABM(filter(f, abm.rules); tiepolicy=abm.tiepolicy, params=abm.params)
 
 function Base.push!(abm::ABM, r::ABMRule; overwrite=false)
   if haskey(abm.names, r.name)
@@ -461,7 +491,7 @@ function Base.push!(abm::ABM, r::ABMRule; overwrite=false)
   abm
 end
 
-Base.copy(abm::ABM) = abm.rules |> copy |> ABM # shallow - rules have same pointers
+Base.copy(abm::ABM) = ABM(copy(abm.rules); tiepolicy=abm.tiepolicy, params=abm.params)
 Base.length(abm::ABM) = length(abm.rules)
 
 """A collection of timers associated at runtime w/ an ABMRule"""
@@ -541,7 +571,7 @@ mutable struct RuntimeABM
         end
       end
       for (key, val) in kv
-        haz = get_hazard(pat, val, 0., abm.rules[i].timer)
+        haz = get_hazard(pat, val, 0., abm.rules[i].timer; params=abm.params)
         enable!(rt.sampler, i => key, haz, 0., 0., rt.rng)
       end
     end
@@ -594,7 +624,7 @@ function refresh_clocks!(rt::RuntimeABM, abm::ABM)
       end
     end
     for (key, val) in kv
-      haz = get_hazard(pat, val, rt.tnow, abm.rules[i].timer)
+      haz = get_hazard(pat, val, rt.tnow, abm.rules[i].timer; params=abm.params)
       enable!(rt.sampler, i => key, haz, rt.tnow, rt.tnow, rt.rng)
     end
   end
@@ -892,7 +922,7 @@ function run!(abm::ABM, rt::RuntimeABM, output::Traj;
   disable!′(i::Int) = disable!′(i => nothing)
   function enable!′(m::ACSetTransformation, rule_id::Int, key::Maybe{KeyType}=nothing) 
     rule = abm.rules[rule_id]
-    haz = get_hazard(pattern_type(rule), m, rt.tnow, rule.timer)
+    haz = get_hazard(pattern_type(rule), m, rt.tnow, rule.timer; params=abm.params)
     enable!(rt.sampler, rule_id => key, haz, rt.tnow, rt.tnow, rt.rng)
   end
 
@@ -1135,6 +1165,22 @@ function run!(abm::ABM, rt::RuntimeABM, output::Traj;
     end
   end
   return output
+end
+
+"""
+    run_scenarios(abm, init, scenarios; kw...)
+
+Run an ABM under multiple parameter scenarios. Each scenario is a `NamedTuple` 
+or `Dict{Symbol,Any}` that overrides `abm.params` for that run.
+
+Returns a `Vector{Pair{<:Any, Traj}}` of (scenario, trajectory) pairs.
+"""
+function run_scenarios(abm::ABM, init::T, scenarios; kw...) where T<:ACSet
+  map(scenarios) do scen
+    abm_s = ABM(abm.rules, abm.dyn; tiepolicy=abm.tiepolicy, params=scen)
+    traj = run!(abm_s, deepcopy(init); kw...)
+    scen => traj
+  end
 end
 
 end # module

@@ -8,6 +8,7 @@ using Catlab, AlgebraicRewriting
 
 using AlgebraicABMs.ABMs: RegularP, EmptyP, RepresentableP, RuntimeABM, Traj, Intervention
 using AlgebraicRewriting.Incremental.IncrementalCC: match_vect
+using Distributions: Exponential
 
 # Top-level schema definitions for schema inference/validation tests
 # (@acset_type generates `const` which cannot be used inside @testset on Julia 1.12)
@@ -303,6 +304,50 @@ end
   s_small = acset_schema(SmallSet())
   @test is_subschema(s_small, s_graph)[1]   # V ⊂ {V,E,src,tgt}
   @test !is_subschema(s_graph, s_small)[1]  # {V,E} ⊄ {V}
+end
+
+
+# Parameters and scenarios
+###########################
+
+@testset "Parameters" begin
+  dup_p = ABMRule(:dup_p, Rule(id(Graph(1)), homomorphism(Graph(1), Graph(2); initial=(V=[1],))),
+                  ClosureParams((m, params) -> Exponential(params.rate)))
+  
+  abm_p = ABM([dup_p]; params=(rate=0.5,))
+  @test abm_p.params == (rate=0.5,)
+  
+  traj = run!(abm_p, Graph(1); maxevent=3)
+  @test length(traj) >= 3
+end
+
+@testset "FullClosureParams" begin
+  rule_fp = ABMRule(:fp, Rule(id(Graph(1)), homomorphism(Graph(1), Graph(2); initial=(V=[1],))),
+                    FullClosureParams((m, t, p) -> Exponential(p.base_rate * (1 + t))))
+  abm_fp = ABM([rule_fp]; params=(base_rate=1.0,))
+  traj = run!(abm_fp, Graph(1); maxevent=2)
+  @test length(traj) >= 2
+end
+
+@testset "run_scenarios" begin
+  dup_s = ABMRule(:dup_s, Rule(id(Graph(1)), homomorphism(Graph(1), Graph(2); initial=(V=[1],))),
+                  ClosureParams((m, params) -> Exponential(params.rate)))
+  
+  abm_s = ABM([dup_s]; params=(rate=1.0,))
+  scenarios = [(rate=0.1,), (rate=1.0,), (rate=10.0,)]
+  
+  results = run_scenarios(abm_s, Graph(1), scenarios; maxevent=5)
+  @test length(results) == 3
+  @test all(r -> r isa Pair, results)
+  @test results[1].first == (rate=0.1,)
+  @test all(r -> length(r.second) >= 5, results)
+end
+
+@testset "Params backward compatibility" begin
+  abm_no_p = ABM([create_loop, add_loop])
+  @test isnothing(abm_no_p.params)
+  traj = run!(abm_no_p, G; maxevent=5)
+  @test length(traj) >= 5
 end
 
 
