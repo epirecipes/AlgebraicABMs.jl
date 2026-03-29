@@ -8,6 +8,13 @@ using Catlab, AlgebraicRewriting
 
 using AlgebraicABMs.ABMs: RegularP, EmptyP, RepresentableP, RuntimeABM
 using AlgebraicRewriting.Incremental.IncrementalCC: match_vect
+using Catlab.CategoricalAlgebra.CSets: MarkAsDeleted
+
+# MarkAsDeleted graph type for schedule tests
+@present SchGrphMD(FreeSchema) begin
+  V::Ob; E::Ob; src::Hom(E,V); tgt::Hom(E,V)
+end
+@acset_type GrphMD(SchGrphMD, part_type=MarkAsDeleted)
 
 # L = ∅, I = ∅, R = •↺
 create_loop = ABMRule(
@@ -133,6 +140,53 @@ init = @acset LSet begin X=2; f=[1.1, 2.2] end
 
 
 
+
+
+# Schedules
+##################
+
+@testset "ABMSchedule basic" begin
+  # Create a schedule that adds a vertex
+  z = GrphMD()
+  g1 = @acset GrphMD begin V=1 end
+  add_v_rule = Rule(id(z), create(g1))
+  ra = RuleApp(:add_v, add_v_rule, z)
+  sched = tryrule(ra)
+  
+  # ABMSchedule with DiscreteHazard
+  abm_sched = ABMSchedule(:add_v_sched, sched, DiscreteHazard(1.))
+  @test nameof(abm_sched) == :add_v_sched
+  
+  # ABM with only a schedule (no rules)
+  abm = ABM(ABMRule[]; schedules=[abm_sched])
+  @test length(abm.schedules) == 1
+  
+  init = @acset GrphMD begin V=2 end
+  traj = run!(abm, init; maxevent=5)
+  @test length(traj) >= 3
+end
+
+@testset "ABMSchedule with rules" begin
+  # Mix: regular rule + schedule on MarkAsDeleted graph
+  z = GrphMD()
+  g1 = @acset GrphMD begin V=1 end
+  g2 = @acset GrphMD begin V=2 end
+  
+  # Regular rule: duplicate a vertex (exponential, no explicit hom-set)
+  h = homomorphism(g1, g2; initial=(V=[1],))
+  dup_rule = ABMRule(:dup, Rule(id(g1), h), ContinuousHazard(0.5))
+  
+  # Schedule: add a vertex
+  add_v_rule = Rule(id(z), create(g1))
+  ra = RuleApp(:sched_add, add_v_rule, z)
+  sched = tryrule(ra)
+  abm_sched = ABMSchedule(:periodic_add, sched, DiscreteHazard(2.))
+  
+  abm = ABM([dup_rule]; schedules=[abm_sched])
+  init = @acset GrphMD begin V=1 end
+  traj = run!(abm, init; maxevent=5)
+  @test length(traj) >= 3
+end
 
 
 end # module
