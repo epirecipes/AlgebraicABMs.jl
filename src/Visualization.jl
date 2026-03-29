@@ -13,6 +13,7 @@ Take a function which produces a graphviz representation. Makes
 a series of images.
 """
 function Base.view(t::Traj, viewer; dirname="default")
+  isempty(t.hist) && error("Cannot visualize trajectory: no history recorded. Run with record_history=true.")
   pth = mkpath(joinpath("traj",dirname)) # make the folder
   N = length(string(length(t)))
   fi(i::Int) = joinpath(pth, "$(lpad(i, N, "0")).svg")
