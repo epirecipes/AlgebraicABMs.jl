@@ -131,8 +131,84 @@ init = @acset LSet begin X=2; f=[1.1, 2.2] end
 
 # res = run!(abm, init, maxevent=2)
 
+# Networkify
+############
+
+@testset "networkify Presentation" begin
+  @present SchSIR(FreeSchema) begin S::Ob; I::Ob; R::Ob end
+  S_net = networkify(SchSIR)
+  gen_names = [first(g) for g in generators(S_net)]
+  @test :V ∈ gen_names
+  @test :E ∈ gen_names
+  @test :src ∈ gen_names
+  @test :tgt ∈ gen_names
+  @test :loc_S ∈ gen_names
+  @test :loc_I ∈ gen_names
+  @test :loc_R ∈ gen_names
+  @test length(generators(S_net, :Ob)) == 5  # S, I, R, V, E
+  @test length(generators(S_net, :Hom)) == 5  # src, tgt, loc_S, loc_I, loc_R
+end
+
+@testset "networkify BasicSchema" begin
+  bs = Catlab.BasicSchema{Symbol}(
+    [:Person], Tuple{Symbol,Symbol,Symbol}[], [:Status], [(:status, :Person, :Status)],
+    Tuple{Union{Nothing,Symbol},Symbol,Symbol,Tuple{Tuple{Vararg{Symbol}},Tuple{Vararg{Symbol}}}}[])
+  bs_net = networkify(bs)
+  @test :V ∈ objects(bs_net)
+  @test :E ∈ objects(bs_net)
+  @test (:src, :E, :V) ∈ homs(bs_net)
+  @test (:tgt, :E, :V) ∈ homs(bs_net)
+  @test (:loc_Person, :Person, :V) ∈ homs(bs_net)
+  @test (:status, :Person, :Status) ∈ attrs(bs_net)
+end
+
+@testset "networkify custom prefix" begin
+  @present SchA(FreeSchema) begin A::Ob end
+  S_net = networkify(SchA; loc_prefix=:at_)
+  gen_names = [first(g) for g in generators(S_net)]
+  @test :at_A ∈ gen_names
+  @test :loc_A ∉ gen_names
+end
+
+@testset "shortest_distance" begin
+  @present SchG(FreeSchema) begin V::Ob; E::Ob; src::Hom(E,V); tgt::Hom(E,V) end
+  @acset_type TG(SchG)
+  g = @acset TG begin V=5; E=8; src=[1,2,3,4,2,3,4,5]; tgt=[2,3,4,5,1,2,3,4] end
+  @test shortest_distance(g, 1, 1) == 0
+  @test shortest_distance(g, 1, 2) == 1
+  @test shortest_distance(g, 1, 3) == 2
+  @test shortest_distance(g, 1, 5) == 4
+  @test shortest_distance(g, 3, 5) == 2
+  
+  g2 = @acset TG begin V=4; E=2; src=[1,2]; tgt=[2,1] end
+  @test shortest_distance(g2, 1, 2) == 1
+  @test shortest_distance(g2, 1, 3) == typemax(Int)
+end
+
+@testset "networkify pattern matching" begin
+  @present SchPopNet(FreeSchema) begin
+    Agent::Ob; V::Ob; E::Ob
+    src::Hom(E,V); tgt::Hom(E,V); loc::Hom(Agent,V)
+  end
+  @acset_type PopNet(SchPopNet)
+  
+  state = @acset PopNet begin
+    Agent=3; V=3; E=6
+    src=[1,2,3,2,3,1]; tgt=[2,3,1,1,2,3]
+    loc=[1,2,3]
+  end
+  
+  # Two adjacent agents
+  pat = @acset PopNet begin Agent=2; V=2; E=1; loc=[1,2]; src=[1]; tgt=[2] end
+  ms = homomorphisms(pat, state)
+  @test length(ms) == 6  # 3 edges × 2 agent orderings
+  
+  # Two agents at same vertex (no matches)
+  pat_same = @acset PopNet begin Agent=2; V=1; loc=[1,1] end
+  ms_same = homomorphisms(pat_same, state; monic=true)
+  @test length(ms_same) == 0
+end
 
 
-
-
+end # module
 end # module

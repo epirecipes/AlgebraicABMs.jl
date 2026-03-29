@@ -2,7 +2,8 @@
 module ABMs
 
 export ABM, ABMRule, run!, DiscreteHazard, ContinuousHazard, FullClosure, 
-       ClosureState, ClosureTime, RawODE, ABMFlow, filter, push!, copy, length
+       ClosureState, ClosureTime, RawODE, ABMFlow, filter, push!, copy, length,
+       networkify, shortest_distance
 
 using Distributions, CompetingClocks, Random
 using DataStructures: DefaultDict
@@ -604,6 +605,125 @@ function run!(abm::ABM, rt::RuntimeABM, output::Traj;
     end
   end
   return output
+end
+
+# Networkification
+##################
+
+"""
+    networkify(S::Presentation; loc_prefix=:loc_)
+
+Extend schema `S` with graph structure, putting agents on a network.
+Adds objects `V` (vertices) and `E` (edges), homs `src` and `tgt`, and
+for each object `X` in `S`, a location hom `loc_prefix * X :: Hom(X, V)`.
+
+Returns a new `Presentation`. Use with `@acset_type` or `AnonACSet` to
+create instances.
+
+# Example
+```julia
+@present SchSIR(FreeSchema) begin
+  S::Ob; I::Ob; R::Ob
+end
+SchSIR_Net = networkify(SchSIR)
+# Now has: S, I, R, V, E, src, tgt, loc_S, loc_I, loc_R
+```
+"""
+function networkify(S::Presentation; loc_prefix::Symbol=:loc_)
+  S_net = Presentation(FreeSchema)
+  
+  # Copy existing generators
+  for g in generators(S, :Ob)
+    add_generator!(S_net, g)
+  end
+  for g in generators(S, :AttrType)
+    add_generator!(S_net, g)
+  end
+  
+  # Add graph structure
+  add_generator!(S_net, Ob(FreeSchema, :V))
+  add_generator!(S_net, Ob(FreeSchema, :E))
+  
+  # Copy existing homs
+  for g in generators(S, :Hom)
+    add_generator!(S_net, g)
+  end
+  
+  add_generator!(S_net, Hom(:src, S_net[:E], S_net[:V]))
+  add_generator!(S_net, Hom(:tgt, S_net[:E], S_net[:V]))
+  
+  # Copy existing attrs
+  for g in generators(S, :Attr)
+    add_generator!(S_net, g)
+  end
+  
+  # Add location homs for each original object
+  for g in generators(S, :Ob)
+    name = Symbol(loc_prefix, first(g))
+    add_generator!(S_net, Hom(name, S_net[first(g)], S_net[:V]))
+  end
+  
+  return S_net
+end
+
+"""
+    networkify(S::BasicSchema{Symbol}; loc_prefix=:loc_)
+
+Extend a `BasicSchema` with graph structure. Returns a new `BasicSchema`.
+"""
+function networkify(S::Catlab.BasicSchema{Symbol}; loc_prefix::Symbol=:loc_)
+  obs = vcat(collect(objects(S)), [:V, :E])
+  hom_list = vcat(
+    collect(homs(S)),
+    [(:src, :E, :V), (:tgt, :E, :V)],
+    [Tuple{Symbol,Symbol,Symbol}((Symbol(loc_prefix, o), o, :V)) for o in objects(S)]
+  )
+  at_list = collect(attrtypes(S))
+  attr_list = collect(attrs(S))
+  Catlab.BasicSchema{Symbol}(obs, hom_list, at_list, attr_list,
+    Tuple{Union{Nothing,Symbol},Symbol,Symbol,Tuple{Tuple{Vararg{Symbol}},Tuple{Vararg{Symbol}}}}[])
+end
+
+"""
+    shortest_distance(state::ACSet, u::Int, v::Int; 
+                      src_hom=:src, tgt_hom=:tgt, v_ob=:V)
+
+Compute shortest path distance between vertices `u` and `v` in the graph
+structure of an ACSet. Returns `typemax(Int)` if no path exists.
+
+Treats edges as undirected (considers both src→tgt and tgt→src).
+"""
+function shortest_distance(state::ACSet, u::Int, v::Int;
+                          src_hom::Symbol=:src, tgt_hom::Symbol=:tgt,
+                          v_ob::Symbol=:V)
+  u == v && return 0
+  nv = nparts(state, v_ob)
+  (u < 1 || u > nv || v < 1 || v > nv) && return typemax(Int)
+  
+  # Build adjacency from edges (undirected)
+  srcs = subpart(state, src_hom)
+  tgts = subpart(state, tgt_hom)
+  adj = [Int[] for _ in 1:nv]
+  for (s, t) in zip(srcs, tgts)
+    push!(adj[s], t)
+    push!(adj[t], s)
+  end
+  
+  # BFS
+  dist = fill(typemax(Int), nv)
+  dist[u] = 0
+  queue = Int[u]
+  while !isempty(queue)
+    cur = popfirst!(queue)
+    for nb in adj[cur]
+      if dist[nb] == typemax(Int)
+        dist[nb] = dist[cur] + 1
+        nb == v && return dist[nb]
+        push!(queue, nb)
+      end
+    end
+  end
+  return dist[v]
 end
 
 end # module
