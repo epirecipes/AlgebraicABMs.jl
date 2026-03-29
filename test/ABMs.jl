@@ -8,6 +8,7 @@ using Catlab, AlgebraicRewriting
 
 using AlgebraicABMs.ABMs: RegularP, EmptyP, RepresentableP, RuntimeABM
 using AlgebraicRewriting.Incremental.IncrementalCC: match_vect
+using Distributions: Exponential
 
 # L = ∅, I = ∅, R = •↺
 create_loop = ABMRule(
@@ -132,7 +133,54 @@ init = @acset LSet begin X=2; f=[1.1, 2.2] end
 # res = run!(abm, init, maxevent=2)
 
 
+# Parameters and scenarios
+###########################
 
+@testset "Parameters" begin
+  # ABM with params accessible to ClosureParams timer
+  dup_p = ABMRule(:dup_p, Rule(id(Graph(1)), homomorphism(Graph(1), Graph(2); initial=(V=[1],))),
+                  ClosureParams((m, params) -> Exponential(params.rate)))
+  
+  abm_p = ABM([dup_p]; params=(rate=0.5,))
+  @test abm_p.params == (rate=0.5,)
+  
+  traj = run!(abm_p, Graph(1); maxevent=3)
+  @test length(traj) >= 3
+end
+
+@testset "FullClosureParams" begin
+  # Timer depends on match, time, and params
+  rule_fp = ABMRule(:fp, Rule(id(Graph(1)), homomorphism(Graph(1), Graph(2); initial=(V=[1],))),
+                    FullClosureParams((m, t, p) -> Exponential(p.base_rate * (1 + t))))
+  abm_fp = ABM([rule_fp]; params=(base_rate=1.0,))
+  traj = run!(abm_fp, Graph(1); maxevent=2)
+  @test length(traj) >= 2
+end
+
+@testset "run_scenarios" begin
+  dup_s = ABMRule(:dup_s, Rule(id(Graph(1)), homomorphism(Graph(1), Graph(2); initial=(V=[1],))),
+                  ClosureParams((m, params) -> Exponential(params.rate)))
+  
+  abm_s = ABM([dup_s]; params=(rate=1.0,))
+  scenarios = [(rate=0.1,), (rate=1.0,), (rate=10.0,)]
+  
+  results = run_scenarios(abm_s, Graph(1), scenarios; maxevent=5)
+  @test length(results) == 3
+  @test all(r -> r isa Pair, results)
+  @test results[1].first == (rate=0.1,)
+  @test results[2].first == (rate=1.0,)
+  @test results[3].first == (rate=10.0,)
+  # All trajectories should have events
+  @test all(r -> length(r.second) >= 5, results)
+end
+
+@testset "Params backward compatibility" begin
+  # ABM without params still works (params=nothing by default)
+  abm_no_p = ABM([create_loop, add_loop])
+  @test isnothing(abm_no_p.params)
+  traj = run!(abm_no_p, G; maxevent=5)
+  @test length(traj) >= 5
+end
 
 
 end # module
