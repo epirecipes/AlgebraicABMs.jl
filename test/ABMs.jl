@@ -133,6 +133,37 @@ init = @acset LSet begin X=2; f=[1.1, 2.2] end
 
 
 
+# ClosureHistory test: history-sensitive hazard rates (#22)
+##########################################################
+
+using Distributions: Exponential
+
+# A vertex-doubling rule where the rate depends on trajectory length
+@present SchGrph(FreeSchema) begin V::Ob; E::Ob; src::Hom(E,V); tgt::Hom(E,V) end
+@acset_type GrphT(SchGrph, part_type=BitSetParts)
+
+v_grph = @acset GrphT begin V=1 end
+v2_grph = @acset GrphT begin V=2 end
+
+dup_v_hist = ABMRule(:dup_hist,
+  Rule(id(v_grph), homomorphism(v_grph, v2_grph; initial=(V=[1],))),
+  ClosureHistory((m, t, traj) -> begin
+    # Rate decreases as more events occur (slowing growth)
+    n = isnothing(traj) ? 0 : length(traj)
+    Exponential(1.0 + n)
+  end))
+
+@testset "ClosureHistory" begin
+  abm = ABM([dup_v_hist])
+  init = @acset GrphT begin V=2 end
+  res = run!(abm, init; maxevent=5)
+  @test length(res) == 5
+  # Events should get progressively further apart since rate slows
+  times = [e[1] for e in res.events]
+  # Just verify it ran and times are increasing
+  @test issorted(times)
+  @test all(t -> t > 0, times)
+end
 
 
 end # module

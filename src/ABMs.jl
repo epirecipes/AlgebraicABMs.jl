@@ -2,7 +2,8 @@
 module ABMs
 
 export ABM, ABMRule, run!, DiscreteHazard, ContinuousHazard, FullClosure, 
-       ClosureState, ClosureTime, RawODE, ABMFlow, filter, push!, copy, length
+       ClosureState, ClosureTime, ClosureHistory,
+       RawODE, ABMFlow, filter, push!, copy, length
 
 using Distributions, CompetingClocks, Random
 using DataStructures: DefaultDict
@@ -60,6 +61,27 @@ struct ClosureState <: StateDependentTimer
 end
 
 (c::ClosureState)(m::ACSetTransformation) = c.val(m)
+
+"""
+A closure which accepts a match morphism, clock time, and trajectory history,
+returning a hazard_rate. This enables history-sensitive hazard rates where the
+firing distribution depends on past events (e.g. time since infection, 
+cumulative exposure, prior state transitions).
+
+The trajectory is passed as a `Traj` object containing all events and rewrite
+spans up to the current simulation time.
+
+# Example
+```julia
+# Recovery rate increases with time since infection
+ClosureHistory((m, t, traj) -> Exponential(1.0 / (1 + length(traj))))
+```
+"""
+struct ClosureHistory <: StateDependentTimer
+  val::Function # (ACSetTransformation, clocktime, Traj) → hazard_rate
+end
+
+(c::ClosureHistory)(m::ACSetTransformation, t::Float64, traj) = c.val(m, t, traj)
 
 abstract type AbsHazard <: AbsTimer end
 
@@ -181,16 +203,19 @@ end
 
 # Hazard rates depend on pattern type
 
-get_hazard(::PatternType, m::ACSetTransformation, t::Float64, h::FullClosure) = h(m, t)
+get_hazard(::PatternType, m::ACSetTransformation, t::Float64, h::FullClosure; kw...) = h(m, t)
 
-get_hazard(::PatternType, ::ACSetTransformation, t::Float64, h::ClosureTime) = h(t)
+get_hazard(::PatternType, ::ACSetTransformation, t::Float64, h::ClosureTime; kw...) = h(t)
 
-get_hazard(::PatternType, m::ACSetTransformation, ::Float64, h::ClosureState) = h(m)
+get_hazard(::PatternType, m::ACSetTransformation, ::Float64, h::ClosureState; kw...) = h(m)
 
-get_hazard(::PatternType, ::ACSetTransformation, ::Float64, h::AbsHazard) = h.val
+get_hazard(::PatternType, m::ACSetTransformation, t::Float64, h::ClosureHistory; traj=nothing, kw...) = 
+  h(m, t, traj)
+
+get_hazard(::PatternType, ::ACSetTransformation, ::Float64, h::AbsHazard; kw...) = h.val
 
 function get_hazard(r::RepresentableP, f::ACSetTransformation, ::Float64, 
-                    h::ContinuousHazard) 
+                    h::ContinuousHazard; kw...) 
    err = "Representable patterns must have simple exponential rules"
    X = codom(f)
    is_exp(h) ? Exponential(h.val.θ/multiplier(r,X)) : error(err)
@@ -496,7 +521,7 @@ function run!(abm::ABM, rt::RuntimeABM, output::Traj;
   disable!′(i::Int) = disable!′(i => nothing)
   function enable!′(m::ACSetTransformation, rule_id::Int, key::Maybe{KeyType}=nothing) 
     rule = abm.rules[rule_id]
-    haz = get_hazard(pattern_type(rule), m, rt.tnow, rule.timer)
+    haz = get_hazard(pattern_type(rule), m, rt.tnow, rule.timer; traj=output)
     enable!(rt.sampler, rule_id => key, haz, rt.tnow, rt.tnow, rt.rng)
   end
 
