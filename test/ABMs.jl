@@ -8,6 +8,7 @@ using Catlab, AlgebraicRewriting
 
 using AlgebraicABMs.ABMs: RegularP, EmptyP, RepresentableP, RuntimeABM
 using AlgebraicRewriting.Incremental.IncrementalCC: match_vect
+using Distributions: Exponential
 
 # L = ∅, I = ∅, R = •↺
 create_loop = ABMRule(
@@ -131,8 +132,67 @@ init = @acset LSet begin X=2; f=[1.1, 2.2] end
 
 # res = run!(abm, init, maxevent=2)
 
+# Dependency restriction test (#17)
+####################################
 
+@testset "ABMRule context/dependency" begin
+  # Test 1: context extends the match to include neighborhood
+  # Pattern: a single vertex (L = •)
+  # Context: a vertex with an edge (Ctx = •→•), so hazard can see neighbors
+  L = Graph(1)
+  Ctx = @acset Graph begin V=2; E=1; src=[1]; tgt=[2] end
+  ctx_morph = homomorphism(L, Ctx; initial=(V=[1],))
 
+  # The rule duplicates a vertex: • ↦ ••
+  R = Graph(2)
+  I = Graph(1)
+  dup_rule = Rule(id(I), homomorphism(I, R; initial=(V=[1],)))
+
+  # With context, the hazard receives a match Ctx→X (can see the edge)
+  rule_with_ctx = ABMRule(dup_rule, ClosureState(m -> begin
+    # m is now Ctx→X, so we can count edges in the image
+    Exponential(1.0)
+  end); context=ctx_morph, name=:dup_ctx)
+
+  @test !isnothing(rule_with_ctx.context)
+  @test isnothing(rule_with_ctx.dependency)
+
+  # Test 2: dependency restricts what the hazard sees
+  Dep = Graph(1)  # dependency is just a vertex (subset of context)
+  dep_morph = homomorphism(Dep, Ctx; initial=(V=[1],))
+
+  rule_with_dep = ABMRule(dup_rule, ClosureState(m -> begin
+    Exponential(1.0)
+  end); context=ctx_morph, dependency=dep_morph, name=:dup_dep)
+
+  @test !isnothing(rule_with_dep.context)
+  @test !isnothing(rule_with_dep.dependency)
+
+  # Test 3: resolve_match extends through context
+  G = @acset Graph begin V=3; E=2; src=[1,2]; tgt=[2,3] end
+  # Match L→G sending vertex 1 to vertex 1
+  m = homomorphism(L, G; initial=(V=[1],))
+  m_ctx = resolve_match(rule_with_ctx, m)
+  # Extended match should map from Ctx (2 vertices, 1 edge) to G
+  @test nparts(dom(m_ctx), :V) == 2
+  @test nparts(dom(m_ctx), :E) == 1
+
+  # Test 4: resolve_match with dependency restricts to Dep
+  m_dep = resolve_match(rule_with_dep, m)
+  # Dependency match maps from Dep (1 vertex) to G
+  @test nparts(dom(m_dep), :V) == 1
+
+  # Test 5: resolve_match without context returns original match
+  rule_plain = ABMRule(dup_rule, ContinuousHazard(1.0); name=:dup_plain)
+  m_plain = resolve_match(rule_plain, m)
+  @test m_plain == m
+
+  # Test 6: run with context-aware rule
+  abm_ctx = ABM([rule_with_ctx])
+  init_g = @acset Graph begin V=3; E=2; src=[1,2]; tgt=[2,3] end
+  res = run!(abm_ctx, init_g; maxevent=3)
+  @test length(res) == 3
+end
 
 
 end # module

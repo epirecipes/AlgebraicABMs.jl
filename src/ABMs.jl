@@ -2,7 +2,8 @@
 module ABMs
 
 export ABM, ABMRule, run!, DiscreteHazard, ContinuousHazard, FullClosure, 
-       ClosureState, ClosureTime, RawODE, ABMFlow, filter, push!, copy, length
+       ClosureState, ClosureTime, RawODE, ABMFlow, filter, push!, copy, length,
+       resolve_match
 
 using Distributions, CompetingClocks, Random
 using DataStructures: DefaultDict
@@ -204,6 +205,17 @@ A stochastic rewrite rule with a dependent hazard rate
 A basis is a subobject of the pattern of the rule for which we want a timer 
 per match. By default, the basis ↣ pattern map is just id(pattern).
 
+A context is an optional morphism `L ↪ Ctx` embedding the pattern in a larger 
+context. When provided, state-dependent hazard rates receive a match morphism
+`Ctx → X` (the extended context match) instead of just `L → X`. This lets 
+hazard rates access neighborhood information beyond the pattern itself.
+
+A dependency is an optional morphism `Dep ↪ Ctx` identifying the subset of 
+the context that the hazard rate actually depends on. When provided, the hazard 
+receives a match `Dep → X` (the restricted dependency match). This declares 
+which parts of the context affect the rate, enabling future optimization of 
+re-evaluation.
+
 """
 @struct_hash_equal struct ABMRule
   rule::Rule
@@ -211,8 +223,11 @@ per match. By default, the basis ↣ pattern map is just id(pattern).
   basis::Maybe{ACSetTransformation}
   name::Maybe{Symbol}
   pattern_type::PatternType
-  ABMRule(r::Rule, t::AbsTimer; basis=nothing, name=nothing) = 
-    new(r, t, basis, name, pattern_type(r, is_exp(t)))
+  context::Maybe{ACSetTransformation}     # L ↪ Ctx
+  dependency::Maybe{ACSetTransformation}  # Dep ↪ Ctx
+  ABMRule(r::Rule, t::AbsTimer; basis=nothing, name=nothing, 
+          context=nothing, dependency=nothing) = 
+    new(r, t, basis, name, pattern_type(r, is_exp(t)), context, dependency)
 end
 
 # Give name as first arg rather than as kwarg
@@ -234,13 +249,41 @@ ruletype(r::ABMRule) = ruletype(getrule(r))
 
 basis(r::ABMRule) = r.basis
 
+context(r::ABMRule) = r.context
+dependency(r::ABMRule) = r.dependency
+
 basis_pattern(r::ABMRule) = isnothing(r.basis) ? codom(left(r)) : dom(basis(r))
 
 get_matches(r::ABMRule, args...; kw...) = 
   get_matches(getrule(r), args...; kw...)
 
 (F::Migrate)(r::ABMRule) = 
-  ABMRule(F(r.rule), r.timer; basis=F(r.basis), name=r.name)
+  ABMRule(F(r.rule), r.timer; basis=F(r.basis), name=r.name,
+          context=isnothing(r.context) ? nothing : F(r.context),
+          dependency=isnothing(r.dependency) ? nothing : F(r.dependency))
+
+"""
+    resolve_match(rule::ABMRule, m::ACSetTransformation)
+
+Given a match `m : L → X`, extend it through the context and/or dependency
+morphisms to produce the match that the hazard rate function will receive.
+
+- No context/dependency: returns `m` (the pattern match L → X)
+- Context only: returns `Ctx → X` (extended to the full context)
+- Context + dependency: returns `Dep → X` (restricted to the dependency)
+"""
+function resolve_match(rule::ABMRule, m::ACSetTransformation)
+  ctx = context(rule)
+  isnothing(ctx) && return m
+  # Extend match through context: find Ctx → X extending L → X through L ↪ Ctx
+  ctx_match = extend_morphism_constraints(m, ctx)
+  extended = homomorphism(codom(ctx), codom(m); initial=ctx_match)
+  isnothing(extended) && return m  # fallback if extension fails
+  dep = dependency(rule)
+  isnothing(dep) && return extended
+  # Restrict to dependency: compose Dep ↪ Ctx → X
+  return dep ⋅ extended
+end
 
 """
 A type which implements AbsDynamics must be able to compiled to an ODE for some 
@@ -379,7 +422,8 @@ mutable struct RuntimeABM
         end
       end
       for (key, val) in kv
-        haz = get_hazard(pat, val, 0., abm.rules[i].timer)
+        val_resolved = resolve_match(abm.rules[i], val)
+        haz = get_hazard(pat, val_resolved, 0., abm.rules[i].timer)
         enable!(rt.sampler, i => key, haz, 0., 0., rt.rng)
       end
     end
@@ -496,7 +540,8 @@ function run!(abm::ABM, rt::RuntimeABM, output::Traj;
   disable!′(i::Int) = disable!′(i => nothing)
   function enable!′(m::ACSetTransformation, rule_id::Int, key::Maybe{KeyType}=nothing) 
     rule = abm.rules[rule_id]
-    haz = get_hazard(pattern_type(rule), m, rt.tnow, rule.timer)
+    m_resolved = resolve_match(rule, m)
+    haz = get_hazard(pattern_type(rule), m_resolved, rt.tnow, rule.timer)
     enable!(rt.sampler, rule_id => key, haz, rt.tnow, rt.tnow, rt.rng)
   end
 
