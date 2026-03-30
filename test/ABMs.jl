@@ -131,8 +131,54 @@ init = @acset LSet begin X=2; f=[1.1, 2.2] end
 
 # res = run!(abm, init, maxevent=2)
 
+# Match identity test (#21)
+############################
+using Distributions: Exponential
 
+@testset "match_equal with fix" begin
+  # L is a vertex with a loop (•↺)
+  L = @acset Graph begin V=1; E=1; src=[1]; tgt=[1] end
+  # L_fix is just the vertex (ignoring the loop's identity)
+  L_fix = Graph(1)
+  fix_morph = homomorphism(L_fix, L)
 
+  rule_no_fix = ABMRule(Rule(id(L), id(L)), ContinuousHazard(1.0); name=:nf)
+  rule_fix = ABMRule(Rule(id(L), id(L)), ContinuousHazard(1.0); name=:wf, fix=fix_morph)
+
+  # Two matches into a graph with 2 vertices + loops
+  G = @acset Graph begin V=2; E=2; src=[1,2]; tgt=[1,2] end
+  m1 = homomorphism(L, G; initial=(V=[1], E=[1]))
+  m2 = homomorphism(L, G; initial=(V=[1], E=[1]))
+  m3 = homomorphism(L, G; initial=(V=[2], E=[2]))
+
+  # Same match: both should agree
+  @test match_equal(rule_no_fix, m1, m2) == true
+  @test match_equal(rule_fix, m1, m2) == true
+
+  # Different matches (different vertex)
+  @test match_equal(rule_no_fix, m1, m3) == false
+  @test match_equal(rule_fix, m1, m3) == false
+
+  # Test that fix field is accessible
+  @test isnothing(rule_no_fix.fix)
+  @test !isnothing(rule_fix.fix)
+end
+
+@testset "ABMRule fix construction" begin
+  # Verify fix is properly stored and used
+  L = Graph(1)
+  R = Graph(2)
+  I = Graph(1)
+  r = Rule(id(I), homomorphism(I, R; initial=(V=[1],)))
+  
+  # Without fix
+  rule1 = ABMRule(r, ContinuousHazard(1.0))
+  @test isnothing(rule1.fix)
+  
+  # With fix (identity — all parts matter)
+  rule2 = ABMRule(r, ContinuousHazard(1.0); fix=id(L))
+  @test !isnothing(rule2.fix)
+end
 
 
 end # module

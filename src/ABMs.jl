@@ -2,7 +2,8 @@
 module ABMs
 
 export ABM, ABMRule, run!, DiscreteHazard, ContinuousHazard, FullClosure, 
-       ClosureState, ClosureTime, RawODE, ABMFlow, filter, push!, copy, length
+       ClosureState, ClosureTime, RawODE, ABMFlow, filter, push!, copy, length,
+       match_equal
 
 using Distributions, CompetingClocks, Random
 using DataStructures: DefaultDict
@@ -204,6 +205,13 @@ A stochastic rewrite rule with a dependent hazard rate
 A basis is a subobject of the pattern of the rule for which we want a timer 
 per match. By default, the basis ↣ pattern map is just id(pattern).
 
+A fix is an optional morphism `L_fix ↪ L` identifying the identity-constitutive
+parts of a match. Two matches `m₁, m₂ : L → X` are considered "the same" if 
+`fix ⋅ m₁ == fix ⋅ m₂`. By default (fix=nothing), full match equality is used.
+This is useful when attribute changes should not reset a clock — e.g., changing 
+an agent's health counter shouldn't be treated as destroying and recreating the
+match on that agent.
+
 """
 @struct_hash_equal struct ABMRule
   rule::Rule
@@ -211,8 +219,9 @@ per match. By default, the basis ↣ pattern map is just id(pattern).
   basis::Maybe{ACSetTransformation}
   name::Maybe{Symbol}
   pattern_type::PatternType
-  ABMRule(r::Rule, t::AbsTimer; basis=nothing, name=nothing) = 
-    new(r, t, basis, name, pattern_type(r, is_exp(t)))
+  fix::Maybe{ACSetTransformation}         # L_fix ↪ L
+  ABMRule(r::Rule, t::AbsTimer; basis=nothing, name=nothing, fix=nothing) = 
+    new(r, t, basis, name, pattern_type(r, is_exp(t)), fix)
 end
 
 # Give name as first arg rather than as kwarg
@@ -234,13 +243,29 @@ ruletype(r::ABMRule) = ruletype(getrule(r))
 
 basis(r::ABMRule) = r.basis
 
+fix(r::ABMRule) = r.fix
+
 basis_pattern(r::ABMRule) = isnothing(r.basis) ? codom(left(r)) : dom(basis(r))
 
 get_matches(r::ABMRule, args...; kw...) = 
   get_matches(getrule(r), args...; kw...)
 
 (F::Migrate)(r::ABMRule) = 
-  ABMRule(F(r.rule), r.timer; basis=F(r.basis), name=r.name)
+  ABMRule(F(r.rule), r.timer; basis=F(r.basis), name=r.name,
+          fix=isnothing(r.fix) ? nothing : F(r.fix))
+
+"""
+    match_equal(rule::ABMRule, m1::ACSetTransformation, m2::ACSetTransformation)
+
+Compare two matches for identity according to the rule's `fix` subobject.
+If `fix` is set, compares `fix ⋅ m1 == fix ⋅ m2` (only identity-constitutive
+parts). Otherwise compares `m1 == m2` (full match equality).
+"""
+function match_equal(rule::ABMRule, m1::ACSetTransformation, m2::ACSetTransformation)
+  f = fix(rule)
+  isnothing(f) && return m1 == m2
+  return (f ⋅ m1) == (f ⋅ m2)
+end
 
 """
 A type which implements AbsDynamics must be able to compiled to an ODE for some 
@@ -595,10 +620,18 @@ function run!(abm::ABM, rt::RuntimeABM, output::Traj;
           end
         end
       end
-      # If any of the matches that were fired are still preserved, re-enable
+      # If any of the matches that were fired are still preserved, re-enable,
+      # but only if no match with the same identity (per fix subobject) is 
+      # already enabled from the update phase above.
       for (event, key) in events
         if haskey(rt.clocks[event], key)
-          enable!′(rt.clocks[event][key], event, key)
+          fired_match = rt.clocks[event][key]
+          rule_ev = abm.rules[event]
+          already = any(pairs(rt.clocks[event])) do (k, m)
+            k != key && haskey(rt.sampler.transition_entry, event => k) &&
+              match_equal(rule_ev, m, fired_match)
+          end
+          already || enable!′(fired_match, event, key)
         end
       end
     end
