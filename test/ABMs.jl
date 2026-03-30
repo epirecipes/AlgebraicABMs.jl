@@ -539,6 +539,17 @@ end
   m_plain = resolve_match(ABMRule(dup_rule, ContinuousHazard(1.0); name=:dup_plain), m)
   @test m_plain == m
 
+  G_noctx = Graph(1)
+  m_noctx = homomorphism(L, G_noctx; initial=(V=[1],))
+  @test resolve_match(rule_with_ctx, m_noctx) == m_noctx
+
+  G_amb = @acset Graph begin V=3; E=2; src=[1,1]; tgt=[2,3] end
+  m_amb = homomorphism(L, G_amb; initial=(V=[1],))
+  @test_throws ErrorException resolve_match(rule_with_ctx, m_amb)
+  m_amb_dep = resolve_match(rule_with_dep, m_amb)
+  @test nparts(dom(m_amb_dep), :V) == 1
+  @test collect(m_amb_dep[:V]) == [1]
+
   abm_ctx = ABM([rule_with_ctx])
   init_g = @acset Graph begin V=3; E=2; src=[1,2]; tgt=[2,3] end
   res = run!(abm_ctx, init_g; maxevent=3)

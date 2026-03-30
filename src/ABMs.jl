@@ -326,11 +326,19 @@ function resolve_match(rule::ABMRule, m::ACSetTransformation)
   ctx = context(rule)
   isnothing(ctx) && return m
   ctx_match = extend_morphism_constraints(m, ctx)
-  extended = homomorphism(codom(ctx), codom(m); initial=ctx_match)
-  isnothing(extended) && return m
   dep = dependency(rule)
-  isnothing(dep) && return extended
-  return dep ⋅ extended
+  extensions = homomorphisms(codom(ctx), codom(m); initial=ctx_match)
+  isempty(extensions) && return m
+  if isnothing(dep)
+    length(extensions) == 1 && return only(extensions)
+    rname = isnothing(rule.name) ? "<unnamed>" : string(rule.name)
+    error("Ambiguous context extension for rule '$rname': found $(length(extensions)) valid context matches")
+  end
+  dep_extensions = map(ext -> dep ⋅ ext, extensions)
+  first_dep = first(dep_extensions)
+  all(ext -> ext == first_dep, dep_extensions) && return first_dep
+  rname = isnothing(rule.name) ? "<unnamed>" : string(rule.name)
+  error("Ambiguous dependency-restricted context extension for rule '$rname': found $(length(dep_extensions)) distinct dependency matches")
 end
 
 """
