@@ -398,5 +398,39 @@ end
   @test length(traj) >= 3
 end
 
+# Networkify
+############
+
+@testset "networkify Presentation" begin
+  @present SchSIR(FreeSchema) begin S::Ob; I::Ob; R::Ob end
+  S_net = networkify(SchSIR)
+  gen_names = [first(g) for g in generators(S_net)]
+  @test :V ∈ gen_names && :E ∈ gen_names
+  @test :loc_S ∈ gen_names && :loc_I ∈ gen_names && :loc_R ∈ gen_names
+  @test length(generators(S_net, :Ob)) == 5
+  @test length(generators(S_net, :Hom)) == 5
+end
+
+@testset "networkify BasicSchema" begin
+  bs = Catlab.BasicSchema{Symbol}(
+    [:Person], Tuple{Symbol,Symbol,Symbol}[], [:Status], [(:status, :Person, :Status)],
+    Tuple{Union{Nothing,Symbol},Symbol,Symbol,Tuple{Tuple{Vararg{Symbol}},Tuple{Vararg{Symbol}}}}[])
+  bs_net = networkify(bs)
+  @test :V ∈ objects(bs_net) && :E ∈ objects(bs_net)
+  @test (:loc_Person, :Person, :V) ∈ homs(bs_net)
+  @test (:status, :Person, :Status) ∈ attrs(bs_net)
+end
+
+@testset "shortest_distance" begin
+  g = @acset GrphMD begin V=5; E=8; src=[1,2,3,4,2,3,4,5]; tgt=[2,3,4,5,1,2,3,4] end
+  @test shortest_distance(g, 1, 1) == 0
+  @test shortest_distance(g, 1, 2) == 1
+  @test shortest_distance(g, 1, 3) == 2
+  @test shortest_distance(g, 1, 5) == 4
+  g2 = @acset GrphMD begin V=4; E=2; src=[1,2]; tgt=[2,1] end
+  @test shortest_distance(g2, 1, 2) == 1
+  @test shortest_distance(g2, 1, 3) == typemax(Int)
+end
+
 
 end # module
