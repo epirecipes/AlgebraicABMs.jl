@@ -1,31 +1,59 @@
----
-title: "Advanced Features"
-subtitle: "Power-user tools in AlgebraicABMs.jl"
-format:
-  html:
-    code-fold: false
-    toc: true
-  pdf:
-    documentclass: article
-  gfm:
-    toc: true
-engine: julia
----
+# Advanced Features
+Simon Frost
+2026-03-30
+
+- [<span class="toc-section-number">1</span> Overview](#overview)
+- [<span class="toc-section-number">2</span> Setup](#setup)
+- [<span class="toc-section-number">3</span> 1. Schema Inference and
+  Validation](#1-schema-inference-and-validation)
+  - [<span class="toc-section-number">3.1</span> Inferring schemas from
+    rules](#inferring-schemas-from-rules)
+  - [<span class="toc-section-number">3.2</span> Validating rules
+    against a schema](#validating-rules-against-a-schema)
+  - [<span class="toc-section-number">3.3</span> Merging and comparing
+    schemas](#merging-and-comparing-schemas)
+  - [<span class="toc-section-number">3.4</span> Detecting
+    conflicts](#detecting-conflicts)
+- [<span class="toc-section-number">4</span> 2. Rewrite Schedules
+  (`ABMSchedule`)](#2-rewrite-schedules-abmschedule)
+- [<span class="toc-section-number">5</span> 3. Context and Dependency
+  Morphisms](#3-context-and-dependency-morphisms)
+  - [<span class="toc-section-number">5.1</span> Example: rate depends
+    on neighborhood size](#example-rate-depends-on-neighborhood-size)
+  - [<span class="toc-section-number">5.2</span> Demonstrating
+    `resolve_match`](#demonstrating-resolve_match)
+- [<span class="toc-section-number">6</span> 4. Match Identity with Fix
+  Subobject](#4-match-identity-with-fix-subobject)
+- [<span class="toc-section-number">7</span> 5. History-Sensitive
+  Hazards
+  (`ClosureHistory`)](#5-history-sensitive-hazards-closurehistory)
+  - [<span class="toc-section-number">7.1</span> Example: increasing
+    hazard over time](#example-increasing-hazard-over-time)
+  - [<span class="toc-section-number">7.2</span> Example: waning
+    immunity](#example-waning-immunity)
+- [<span class="toc-section-number">8</span> 6. Dimensional Analysis
+  with Unitful
+  (Conditional)](#6-dimensional-analysis-with-unitful-conditional)
+- [<span class="toc-section-number">9</span> Summary](#summary)
 
 ## Overview
 
-This vignette covers advanced features for users who need fine-grained control over model structure and dynamics:
+This vignette covers advanced features for users who need fine-grained
+control over model structure and dynamics:
 
-1. **Schema inference and validation** — automatic schema management
-2. **Rewrite schedules** (`ABMSchedule`) — multi-step transformations on a single timer
-3. **Context and dependency morphisms** — control what the hazard rate "sees"
-4. **Match identity with fix** — when two matches are "the same"
-5. **History-sensitive hazards** (`ClosureHistory`) — rates that depend on trajectory
-6. **Dimensional analysis with Unitful** — optional unit checking
+1.  **Schema inference and validation** — automatic schema management
+2.  **Rewrite schedules** (`ABMSchedule`) — multi-step transformations
+    on a single timer
+3.  **Context and dependency morphisms** — control what the hazard rate
+    “sees”
+4.  **Match identity with fix** — when two matches are “the same”
+5.  **History-sensitive hazards** (`ClosureHistory`) — rates that depend
+    on trajectory
+6.  **Dimensional analysis with Unitful** — optional unit checking
 
 ## Setup
 
-```{julia}
+``` julia
 using AlgebraicABMs
 using Catlab, AlgebraicRewriting
 using Distributions: Exponential
@@ -39,11 +67,13 @@ using AlgebraicABMs.ABMs: Traj, RuntimeABM, resolve_match, match_equal,
 
 ## 1. Schema Inference and Validation
 
-When building an ABM from multiple rules, the framework can automatically infer the combined schema or validate rules against a declared one.
+When building an ABM from multiple rules, the framework can
+automatically infer the combined schema or validate rules against a
+declared one.
 
 ### Inferring schemas from rules
 
-```{julia}
+``` julia
 # Rule 1: operates on a graph (V, E with src/tgt)
 L1 = @acset Graph begin V=2; E=1; src=[1]; tgt=[2] end
 I1 = Graph(2)
@@ -66,17 +96,23 @@ println("  Objects: ", objects(schema))
 println("  Homs: ", homs(schema))
 ```
 
+    Inferred schema:
+      Objects: [:V, :E]
+      Homs: [(:src, :E, :V), (:tgt, :E, :V)]
+
 ### Validating rules against a schema
 
-```{julia}
+``` julia
 # Validate that both rules are compatible with the Graph schema
 validated = validate_schema([rule1, rule2], schema)
 println("Validation passed: schema has $(length(objects(validated))) objects")
 ```
 
+    Validation passed: schema has 2 objects
+
 ### Merging and comparing schemas
 
-```{julia}
+``` julia
 # Extract individual rule schemas
 s1 = AlgebraicABMs.ABMs.rule_schema(rule1)
 s2 = AlgebraicABMs.ABMs.rule_schema(rule2)
@@ -95,9 +131,15 @@ println("Rule 2 schema ⊆ merged: $(ok1)")
 println("Rule 1 schema ⊆ merged: $(ok2)")
 ```
 
+    Rule 1 schema objects: [:V, :E]
+    Rule 2 schema objects: [:V, :E]
+    Merged schema objects: [:V, :E]
+    Rule 2 schema ⊆ merged: true
+    Rule 1 schema ⊆ merged: true
+
 ### Detecting conflicts
 
-```{julia}
+``` julia
 # is_subschema returns (false, reason) when schemas are incompatible
 small_schema = s2  # only has V, no edges
 ok, reason = is_subschema(s1, small_schema)
@@ -105,13 +147,19 @@ println("Rule 1 ⊆ vertex-only schema: $(ok)")
 println("  Reason: $(reason)")
 ```
 
+    Rule 1 ⊆ vertex-only schema: true
+      Reason: 
+
 ## 2. Rewrite Schedules (`ABMSchedule`)
 
-An `ABMSchedule` wraps an AlgebraicRewriting `Schedule` — a sequence of rewriting operations executed atomically when a timer fires. Unlike individual rules, schedules can perform multi-step transformations.
+An `ABMSchedule` wraps an AlgebraicRewriting `Schedule` — a sequence of
+rewriting operations executed atomically when a timer fires. Unlike
+individual rules, schedules can perform multi-step transformations.
 
-**Important:** Schedules require the ACSet to use `MarkAsDeleted` part type.
+**Important:** Schedules require the ACSet to use `MarkAsDeleted` part
+type.
 
-```{julia}
+``` julia
 using Catlab.CategoricalAlgebra.CSets: MarkAsDeleted
 
 # Define a MarkAsDeleted graph type
@@ -143,22 +191,44 @@ println("  The schedule executes atomically when its timer fires")
 println("  After execution, all rule hom-sets are rebuilt from scratch")
 ```
 
-::: {.callout-note}
-**Note:** Schedule execution via `interpret!` currently requires upstream AlgebraicRewriting support for `MarkAsDeleted` ACSet types. The API is ready but runtime execution may require future AlgebraicRewriting releases. The `ABMSchedule` type and construction work correctly — the limitation is in schedule interpretation at runtime.
-:::
+    Schedule built: tryrule(RuleApp(:add_v, ...))
+    Schedule type: Schedule
+
+    ABMSchedule API:
+      ABMSchedule(name, schedule, timer)
+      name: periodic_add
+      timer: DiscreteHazard(3.0) — fires every 3 time units
+
+    Usage: ABM([rules...]; schedules=[abm_sched])
+      The schedule executes atomically when its timer fires
+      After execution, all rule hom-sets are rebuilt from scratch
+
+> [!NOTE]
+>
+> **Note:** Schedule execution via `interpret!` currently requires
+> upstream AlgebraicRewriting support for `MarkAsDeleted` ACSet types.
+> The API is ready but runtime execution may require future
+> AlgebraicRewriting releases. The `ABMSchedule` type and construction
+> work correctly — the limitation is in schedule interpretation at
+> runtime.
 
 ## 3. Context and Dependency Morphisms
 
-The `context` and `dependency` keyword arguments of `ABMRule` control what information the hazard rate function receives.
+The `context` and `dependency` keyword arguments of `ABMRule` control
+what information the hazard rate function receives.
 
-- **`context`** (`L ↪ Ctx`): Embeds the pattern in a larger context. The hazard receives a match `Ctx → X` instead of `L → X`, letting it access neighborhood information.
-- **`dependency`** (`Dep ↪ Ctx`): Restricts which parts of the context the hazard depends on, enabling efficient re-evaluation.
+- **`context`** (`L ↪ Ctx`): Embeds the pattern in a larger context. The
+  hazard receives a match `Ctx → X` instead of `L → X`, letting it
+  access neighborhood information.
+- **`dependency`** (`Dep ↪ Ctx`): Restricts which parts of the context
+  the hazard depends on, enabling efficient re-evaluation.
 
 ### Example: rate depends on neighborhood size
 
-Consider an infection rule on an edge, where the infection rate depends on how many edges the source vertex has (its degree).
+Consider an infection rule on an edge, where the infection rate depends
+on how many edges the source vertex has (its degree).
 
-```{julia}
+``` julia
 # The rule pattern: an edge (V=2, E=1)
 L_inf = @acset Graph begin V=2; E=1; src=[1]; tgt=[2] end
 I_inf = Graph(2)
@@ -175,7 +245,11 @@ println("Context: source vertex with 2 outgoing edges (V=3, E=2)")
 println("Context map defined: ", !isnothing(ctx_map))
 ```
 
-```{julia}
+    Pattern: edge (V=2, E=1)
+    Context: source vertex with 2 outgoing edges (V=3, E=2)
+    Context map defined: true
+
+``` julia
 # The dependency is just the source vertex — the hazard only depends on
 # which vertex is the source, not which specific edges exist
 Dep = Graph(1)  # just one vertex
@@ -185,7 +259,10 @@ println("Dependency: single vertex (V=1)")
 println("Dependency map defined: ", !isnothing(dep_map))
 ```
 
-```{julia}
+    Dependency: single vertex (V=1)
+    Dependency map defined: true
+
+``` julia
 # Create the rule with context and dependency
 infection_ctx = ABMRule(:infection_ctx,
     Rule(homomorphism(I_inf, L_inf; initial=(V=[1,2],)),
@@ -202,11 +279,15 @@ println("  Context: ", !isnothing(infection_ctx.context))
 println("  Dependency: ", !isnothing(infection_ctx.dependency))
 ```
 
+    Rule with context and dependency created
+      Context: true
+      Dependency: true
+
 ### Demonstrating `resolve_match`
 
 `resolve_match` extends a match through the context/dependency chain.
 
-```{julia}
+``` julia
 # Create a graph where the context extension is unique.
 # L_inf is an edge (V=2, E=1). Ctx adds a second edge from the source (V=3, E=2).
 # To make the extension unique, we need the two target vertices to be distinguishable.
@@ -242,13 +323,21 @@ if !isempty(matches)
 end
 ```
 
+    Found 3 matches of the edge pattern
+    First match: V=[1, 2], E=[1]
+    Context extension ambiguous: ErrorException("Exceeded 1: Any[ACSetTransformation((V = FinFunction([1, 2, 2], 3, 3), E = FinFunction([1, 1], 2, 3)), Catlab.Graphs.BasicGraphs.Graph {V:3, E:2}, Catlab.Graphs.BasicGraphs.Graph {V:3, E:3}), ACSetTransformation((V = FinFunction([1, 2, 3], 3, 3), E = FinFunction([1, 2], 2, 3)), Catlab.Graphs.BasicGraphs.Graph {V:3, E:2}, Catlab.Graphs.BasicGraphs.Graph {V:3, E:3})]")
+
 ## 4. Match Identity with Fix Subobject
 
-The `fix` morphism defines when two matches are "essentially the same." If `fix` maps a subobject `L_fix ↪ L`, then matches `m₁, m₂ : L → X` are equal when `fix ⋅ m₁ == fix ⋅ m₂`.
+The `fix` morphism defines when two matches are “essentially the same.”
+If `fix` maps a subobject `L_fix ↪ L`, then matches `m₁, m₂ : L → X` are
+equal when `fix ⋅ m₁ == fix ⋅ m₂`.
 
-This is useful when a rule's pattern has parts that should not distinguish matches — for example, if the timer should not change when an attribute varies.
+This is useful when a rule’s pattern has parts that should not
+distinguish matches — for example, if the timer should not change when
+an attribute varies.
 
-```{julia}
+``` julia
 # Pattern: a single vertex
 L = Graph(1)
 
@@ -262,7 +351,9 @@ rule_fixall = ABMRule(:fix_all,
 println("Rule with fix=id(L): all match components determine identity")
 ```
 
-```{julia}
+    Rule with fix=id(L): all match components determine identity
+
+``` julia
 # Compare matches using match_equal
 state2 = Graph(3)  # three vertices
 ms = homomorphisms(L, state2)
@@ -278,7 +369,11 @@ if length(ms) >= 2
 end
 ```
 
-```{julia}
+    Matches of single vertex into 3-vertex graph: 3
+    match_equal(m1, m2) = false  (expected: false, different vertices)
+    match_equal(m1, m1) = true  (expected: true, same match)
+
+``` julia
 # Without fix: default comparison
 rule_nofix = ABMRule(:no_fix,
     Rule(id(L), id(L)),
@@ -292,13 +387,18 @@ if length(ms) >= 2
 end
 ```
 
+    Without fix — match_equal(m1, m2) = false
+      (same behavior: defaults to m1 == m2)
+
 ## 5. History-Sensitive Hazards (`ClosureHistory`)
 
-`ClosureHistory` accepts `(match, time, trajectory)` and returns a distribution. The trajectory contains all events and rewrite spans up to the current time, enabling hazards that depend on the full history.
+`ClosureHistory` accepts `(match, time, trajectory)` and returns a
+distribution. The trajectory contains all events and rewrite spans up to
+the current time, enabling hazards that depend on the full history.
 
 ### Example: increasing hazard over time
 
-```{julia}
+``` julia
 # A removal rule whose rate increases with the number of past events
 # More events => faster removal (positive feedback)
 removal_hist = ABMRule(:history_removal,
@@ -314,7 +414,9 @@ removal_hist = ABMRule(:history_removal,
 println("ClosureHistory rule: removal rate = 0.1 * (1 + n_past_events)")
 ```
 
-```{julia}
+    ClosureHistory rule: removal rate = 0.1 * (1 + n_past_events)
+
+``` julia
 # Build ABM: vertices are born at a constant rate, removed with history-sensitive rate
 birth_simple = ABMRule(:birth,
     Rule(id(Graph()),
@@ -345,9 +447,15 @@ if length(traj_hist) >= 4
 end
 ```
 
+    History-sensitive simulation:
+      Total events: 50
+      Mean inter-event time (first half): 0.259
+      Mean inter-event time (second half): 0.375
+      (second half should be shorter due to history-dependent acceleration)
+
 ### Example: waning immunity
 
-```{julia}
+``` julia
 # A recovery rule where the rate depends on how long ago the most recent
 # event affecting this vertex occurred (simulating waning immunity)
 recovery_waning = ABMRule(:waning_recovery,
@@ -369,11 +477,15 @@ recovery_waning = ABMRule(:waning_recovery,
 println("Waning immunity rule: recovery rate increases with time since last event")
 ```
 
+    Waning immunity rule: recovery rate increases with time since last event
+
 ## 6. Dimensional Analysis with Unitful (Conditional)
 
-When the `Unitful` package is available, AlgebraicABMs provides unit-aware hazard construction and validation through the `UnitfulExt` extension.
+When the `Unitful` package is available, AlgebraicABMs provides
+unit-aware hazard construction and validation through the `UnitfulExt`
+extension.
 
-```{julia}
+``` julia
 unitful_available = try
     @eval using Unitful
     @eval using Unitful: u_str
@@ -412,10 +524,19 @@ else
 end
 ```
 
+    Unitful not available — skipping dimensional analysis demo
+      Install with: using Pkg; Pkg.add("Unitful")
+
+    When available, the UnitfulExt provides:
+      ContinuousHazard(rate::Quantity)  — construct from unitful rate (e.g., 0.1u"d^-1")
+      DiscreteHazard(time::Quantity)     — construct from unitful time
+      validate_units(rate, expected_dim) — check dimensional consistency
+      strip_units(val)                   — remove units from a quantity
+
 ## Summary
 
 | Feature | API | Use case |
-|---------|-----|----------|
+|----|----|----|
 | Schema inference | `infer_schema(rules)` | Automatic schema from rules |
 | Schema validation | `validate_schema(rules, schema)` | Check compatibility |
 | Schema comparison | `is_subschema(sub, sup)` | Sub-schema testing |
@@ -426,7 +547,7 @@ end
 | History | `ClosureHistory((m,t,traj)->...)` | Trajectory-dependent hazards |
 | Units | `ContinuousHazard(rate_with_units)` | Dimensional safety |
 
-```{julia}
+``` julia
 println("Advanced features demonstrated:")
 println("  ✓ Schema inference, validation, merging, and sub-schema checking")
 println("  ✓ ABMSchedule with MarkAsDeleted state type")
@@ -435,3 +556,11 @@ println("  ✓ Fix subobject with match_equal")
 println("  ✓ ClosureHistory for trajectory-dependent hazard rates")
 println("  ✓ Unitful extension (conditional)")
 ```
+
+    Advanced features demonstrated:
+      ✓ Schema inference, validation, merging, and sub-schema checking
+      ✓ ABMSchedule with MarkAsDeleted state type
+      ✓ Context and dependency morphisms with resolve_match
+      ✓ Fix subobject with match_equal
+      ✓ ClosureHistory for trajectory-dependent hazard rates
+      ✓ Unitful extension (conditional)

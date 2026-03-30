@@ -1,0 +1,855 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.9.28">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+<meta name="author" content="Simon Frost">
+<meta name="dcterms.date" content="2026-03-29">
+
+<title>Hybrid Stochastic-Continuous Models</title>
+<style>
+/* Default styles provided by pandoc.
+** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+*/
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="05_hybrid_files/libs/clipboard/clipboard.min.js"></script>
+<script src="05_hybrid_files/libs/quarto-html/quarto.js" type="module"></script>
+<script src="05_hybrid_files/libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="05_hybrid_files/libs/quarto-html/popper.min.js"></script>
+<script src="05_hybrid_files/libs/quarto-html/tippy.umd.min.js"></script>
+<script src="05_hybrid_files/libs/quarto-html/anchor.min.js"></script>
+<link href="05_hybrid_files/libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="05_hybrid_files/libs/quarto-html/quarto-syntax-highlighting-1d541e707deb911ee702dcbe28eecf08.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="05_hybrid_files/libs/bootstrap/bootstrap.min.js"></script>
+<link href="05_hybrid_files/libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="05_hybrid_files/libs/bootstrap/bootstrap-f93d581b41f20e53031fef139986cb6a.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+
+
+</head>
+
+<body class="quarto-light">
+
+<div id="quarto-content" class="page-columns page-rows-contents page-layout-article">
+<div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+  <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">Table of contents</h2>
+   
+  <ul>
+  <li><a href="#overview" id="toc-overview" class="nav-link active" data-scroll-target="#overview"><span class="header-section-number">1</span> Overview</a></li>
+  <li><a href="#setup" id="toc-setup" class="nav-link" data-scroll-target="#setup"><span class="header-section-number">2</span> Setup</a></li>
+  <li><a href="#example-1-pure-ode-linear-growth" id="toc-example-1-pure-ode-linear-growth" class="nav-link" data-scroll-target="#example-1-pure-ode-linear-growth"><span class="header-section-number">3</span> Example 1: Pure ODE — Linear Growth</a>
+  <ul class="collapse">
+  <li><a href="#define-the-schema" id="toc-define-the-schema" class="nav-link" data-scroll-target="#define-the-schema"><span class="header-section-number">3.1</span> Define the Schema</a></li>
+  <li><a href="#define-the-abmflow" id="toc-define-the-abmflow" class="nav-link" data-scroll-target="#define-the-abmflow"><span class="header-section-number">3.2</span> Define the ABMFlow</a></li>
+  <li><a href="#run-the-pure-ode-simulation" id="toc-run-the-pure-ode-simulation" class="nav-link" data-scroll-target="#run-the-pure-ode-simulation"><span class="header-section-number">3.3</span> Run the pure ODE simulation</a></li>
+  <li><a href="#multiple-patches-with-different-initial-conditions" id="toc-multiple-patches-with-different-initial-conditions" class="nav-link" data-scroll-target="#multiple-patches-with-different-initial-conditions"><span class="header-section-number">3.4</span> Multiple patches with different initial conditions</a></li>
+  </ul></li>
+  <li><a href="#example-2-hybrid-growth-stochastic-duplication" id="toc-example-2-hybrid-growth-stochastic-duplication" class="nav-link" data-scroll-target="#example-2-hybrid-growth-stochastic-duplication"><span class="header-section-number">4</span> Example 2: Hybrid — Growth + Stochastic Duplication</a>
+  <ul class="collapse">
+  <li><a href="#understanding-the-interplay" id="toc-understanding-the-interplay" class="nav-link" data-scroll-target="#understanding-the-interplay"><span class="header-section-number">4.1</span> Understanding the interplay</a></li>
+  </ul></li>
+  <li><a href="#example-3-growth-with-stochastic-removal" id="toc-example-3-growth-with-stochastic-removal" class="nav-link" data-scroll-target="#example-3-growth-with-stochastic-removal"><span class="header-section-number">5</span> Example 3: Growth with Stochastic Removal</a></li>
+  <li><a href="#example-4-sensitivity-to-ode-step-size" id="toc-example-4-sensitivity-to-ode-step-size" class="nav-link" data-scroll-target="#example-4-sensitivity-to-ode-step-size"><span class="header-section-number">6</span> Example 4: Sensitivity to ODE Step Size</a></li>
+  <li><a href="#summary" id="toc-summary" class="nav-link" data-scroll-target="#summary"><span class="header-section-number">7</span> Summary</a></li>
+  </ul>
+<div class="quarto-alternate-formats"><h2>Other Formats</h2><ul><li><a href="05_hybrid.pdf"><i class="bi bi-file-pdf"></i>PDF</a></li><li><a href="05_hybrid.md"><i class="bi bi-file-code"></i>Github (GFM)</a></li></ul></div></nav>
+</div>
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">Hybrid Stochastic-Continuous Models</h1>
+<p class="subtitle lead">Coupling ODE dynamics with stochastic rewriting events</p>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    <div>
+    <div class="quarto-title-meta-heading">Author</div>
+    <div class="quarto-title-meta-contents">
+             <p>Simon Frost </p>
+          </div>
+  </div>
+    
+    <div>
+    <div class="quarto-title-meta-heading">Published</div>
+    <div class="quarto-title-meta-contents">
+      <p class="date">March 29, 2026</p>
+    </div>
+  </div>
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<section id="overview" class="level2" data-number="1">
+<h2 data-number="1" class="anchored" data-anchor-id="overview"><span class="header-section-number">1</span> Overview</h2>
+<p>Many real-world systems combine <strong>continuous dynamics</strong> (growth, decay, diffusion) with <strong>discrete stochastic events</strong> (births, deaths, mutations). AlgebraicABMs supports this naturally through <code>ABMFlow</code>, which couples ODE integration with the stochastic rewriting engine.</p>
+<p>In a hybrid model:</p>
+<ul>
+<li><strong>ABMFlow</strong> defines continuous dynamics on ACSet attributes (e.g., population size, concentration)</li>
+<li><strong>ABMRule</strong> defines stochastic discrete events (e.g., catastrophes, infections)</li>
+<li>The simulation alternates between ODE integration (in steps of <code>dt</code>) and stochastic event execution</li>
+</ul>
+<p>The key data structures are:</p>
+<ul>
+<li><code>RawODE(funcs)</code>: Wraps a vector of functions <code>u_i -&gt; du_i/dt</code>, one per ODE variable</li>
+<li><code>ABMFlow(pattern, dynamics, name, conditions, mapping)</code>: Associates a pattern (with <code>AttrVar</code> placeholders) to ODE dynamics</li>
+</ul>
+</section>
+<section id="setup" class="level2" data-number="2">
+<h2 data-number="2" class="anchored" data-anchor-id="setup"><span class="header-section-number">2</span> Setup</h2>
+<div id="2" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">using</span> <span class="bu">AlgebraicABMs</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">using</span> <span class="bu">AlgebraicABMs.ABMs</span>: RuntimeABM</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">using</span> <span class="bu">Catlab</span>, <span class="bu">AlgebraicRewriting</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="im">using</span> <span class="bu">Distributions</span>: Exponential</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="im">using</span> <span class="bu">Random</span></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="bu">Random</span>.<span class="fu">seed!</span>(<span class="fl">42</span>)</span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a><span class="co"># Resolve Traj ambiguity (exported by both AlgebraicABMs and AlgebraicRewriting)</span></span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a><span class="kw">const</span> ABMTraj <span class="op">=</span> AlgebraicABMs.ABMs.Traj</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display" data-execution_count="1">
+<pre><code>AlgebraicABMs.ABMs.Traj</code></pre>
+</div>
+</div>
+</section>
+<section id="example-1-pure-ode-linear-growth" class="level2" data-number="3">
+<h2 data-number="3" class="anchored" data-anchor-id="example-1-pure-ode-linear-growth"><span class="header-section-number">3</span> Example 1: Pure ODE — Linear Growth</h2>
+<p>We start with a pure continuous model: linear growth of a quantity stored as an attribute.</p>
+<section id="define-the-schema" class="level3" data-number="3.1">
+<h3 data-number="3.1" class="anchored" data-anchor-id="define-the-schema"><span class="header-section-number">3.1</span> Define the Schema</h3>
+<p>We need a schema with a single object carrying a floating-point attribute.</p>
+<div id="4" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="pp">@present</span> <span class="fu">SchLSet</span>(FreeSchema) <span class="cf">begin</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>    X<span class="op">::</span><span class="dt">Ob</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>    D<span class="op">::</span><span class="dt">AttrType</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>    f<span class="op">::</span><span class="dt">Attr</span>(X, D)</span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a><span class="cf">end</span></span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a><span class="pp">@acset_type</span> <span class="fu">LSet</span>(SchLSet){<span class="dt">Float64</span>}</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display" data-execution_count="1">
+<pre><code>var"##LSet#279"{Float64}</code></pre>
+</div>
+</div>
+</section>
+<section id="define-the-abmflow" class="level3" data-number="3.2">
+<h3 data-number="3.2" class="anchored" data-anchor-id="define-the-abmflow"><span class="header-section-number">3.2</span> Define the ABMFlow</h3>
+<p>An <code>ABMFlow</code> requires:</p>
+<ol type="1">
+<li><strong>Pattern</strong>: An ACSet with <code>AttrVar</code> placeholders marking which attributes are ODE variables</li>
+<li><strong>Dynamics</strong>: A <code>RawODE</code> with one function per variable: <code>u_i -&gt; du_i/dt</code></li>
+<li><strong>Mapping</strong>: Pairs linking attribute types to pattern variable indices</li>
+</ol>
+<div id="6" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Pattern: single vertex with one attribute variable</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>v <span class="op">=</span> <span class="pp">@acset</span> LSet <span class="cf">begin</span> X<span class="op">=</span><span class="fl">1</span>; D<span class="op">=</span><span class="fl">1</span>; f<span class="op">=</span>[<span class="fu">AttrVar</span>(<span class="fl">1</span>)] <span class="cf">end</span></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Dynamics: constant growth rate of 1.0 per time unit</span></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a><span class="co"># Each function takes current value u_i and returns du_i/dt</span></span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>growth_dynamics <span class="op">=</span> <span class="fu">RawODE</span>([_ <span class="op">-&gt;</span> <span class="fl">1.0</span>])</span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a><span class="co"># Create the flow</span></span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>linear_flow <span class="op">=</span> <span class="fu">ABMFlow</span>(v, growth_dynamics, <span class="op">:</span>LinearGrow, [], [(<span class="op">:</span>D <span class="op">=&gt;</span> <span class="fl">1</span>)])</span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a><span class="fu">println</span>(<span class="st">"ABMFlow created: pattern has </span><span class="sc">$</span>(<span class="fu">nparts</span>(v, <span class="op">:</span>X))<span class="st"> vertex, </span><span class="sc">$</span>(<span class="fu">nparts</span>(v, <span class="op">:</span>D))<span class="st"> AttrVar"</span>)</span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a><span class="fu">println</span>(<span class="st">"Dynamics: du/dt = 1.0 (constant growth)"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>ABMFlow created: pattern has 1 vertex, 1 AttrVar
+Dynamics: du/dt = 1.0 (constant growth)</code></pre>
+</div>
+</div>
+</section>
+<section id="run-the-pure-ode-simulation" class="level3" data-number="3.3">
+<h3 data-number="3.3" class="anchored" data-anchor-id="run-the-pure-ode-simulation"><span class="header-section-number">3.3</span> Run the pure ODE simulation</h3>
+<p>With no stochastic rules, we run the ABM with only flows. The <code>dt</code> parameter controls the ODE integration step size. Note that pure ODE mode requires the lower-level <code>RuntimeABM</code> interface.</p>
+<div id="8" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>init <span class="op">=</span> <span class="pp">@acset</span> LSet <span class="cf">begin</span> X<span class="op">=</span><span class="fl">2</span>; f<span class="op">=</span>[<span class="fl">1.0</span>, <span class="fl">2.0</span>] <span class="cf">end</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>abm_ode <span class="op">=</span> <span class="fu">ABM</span>(ABMRule[], [linear_flow])</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Create runtime and trajectory objects</span></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>rt <span class="op">=</span> <span class="fu">RuntimeABM</span>(abm_ode, <span class="fu">deepcopy</span>(init))</span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>traj <span class="op">=</span> <span class="fu">ABMTraj</span>(<span class="fu">deepcopy</span>(init))</span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a><span class="co"># Run with ODE stepping</span></span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a><span class="fu">run!</span>(abm_ode, rt, traj; maxtime<span class="op">=</span><span class="fl">5.0</span>, dt<span class="op">=</span><span class="fl">0.5</span>)</span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a><span class="fu">println</span>(<span class="st">"Initial values: [1.0, 2.0]"</span>)</span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a><span class="fu">println</span>(<span class="st">"After 5 time units of linear growth (rate=1.0):"</span>)</span>
+<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a><span class="fu">println</span>(<span class="st">"  f[1] = </span><span class="sc">$</span>(<span class="fu">round</span>(rt.state[<span class="op">:</span>f][<span class="fl">1</span>], digits<span class="op">=</span><span class="fl">2</span>))<span class="st"> (expected: 6.0)"</span>)</span>
+<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a><span class="fu">println</span>(<span class="st">"  f[2] = </span><span class="sc">$</span>(<span class="fu">round</span>(rt.state[<span class="op">:</span>f][<span class="fl">2</span>], digits<span class="op">=</span><span class="fl">2</span>))<span class="st"> (expected: 7.0)"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Initial values: [1.0, 2.0]
+After 5 time units of linear growth (rate=1.0):
+  f[1] = 6.0 (expected: 6.0)
+  f[2] = 7.0 (expected: 7.0)</code></pre>
+</div>
+</div>
+</section>
+<section id="multiple-patches-with-different-initial-conditions" class="level3" data-number="3.4">
+<h3 data-number="3.4" class="anchored" data-anchor-id="multiple-patches-with-different-initial-conditions"><span class="header-section-number">3.4</span> Multiple patches with different initial conditions</h3>
+<p>Each matching vertex gets its own ODE variable, integrated independently.</p>
+<div id="10" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb9"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a>init3 <span class="op">=</span> <span class="pp">@acset</span> LSet <span class="cf">begin</span> X<span class="op">=</span><span class="fl">3</span>; f<span class="op">=</span>[<span class="fl">0.0</span>, <span class="fl">5.0</span>, <span class="fl">10.0</span>] <span class="cf">end</span></span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>abm_ode3 <span class="op">=</span> <span class="fu">ABM</span>(ABMRule[], [linear_flow])</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>rt3 <span class="op">=</span> <span class="fu">RuntimeABM</span>(abm_ode3, <span class="fu">deepcopy</span>(init3))</span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>traj3 <span class="op">=</span> <span class="fu">ABMTraj</span>(<span class="fu">deepcopy</span>(init3))</span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a><span class="fu">run!</span>(abm_ode3, rt3, traj3; maxtime<span class="op">=</span><span class="fl">3.0</span>, dt<span class="op">=</span><span class="fl">0.5</span>)</span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a><span class="fu">println</span>(<span class="st">"Three patches after 3 time units of growth:"</span>)</span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> i <span class="kw">in</span> <span class="fl">1</span><span class="op">:</span><span class="fl">3</span></span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a>    <span class="fu">println</span>(<span class="st">"  Patch </span><span class="sc">$</span>i<span class="st">: </span><span class="sc">$</span>(<span class="fu">round</span>(rt3.state[<span class="op">:</span>f][i], digits<span class="op">=</span><span class="fl">2</span>))<span class="st">"</span>)</span>
+<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a><span class="cf">end</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Three patches after 3 time units of growth:
+  Patch 1: 3.0
+  Patch 2: 8.0
+  Patch 3: 13.0</code></pre>
+</div>
+</div>
+</section>
+</section>
+<section id="example-2-hybrid-growth-stochastic-duplication" class="level2" data-number="4">
+<h2 data-number="4" class="anchored" data-anchor-id="example-2-hybrid-growth-stochastic-duplication"><span class="header-section-number">4</span> Example 2: Hybrid — Growth + Stochastic Duplication</h2>
+<p>Now we combine continuous growth with a stochastic event that duplicates a vertex (copying its attribute value).</p>
+<div id="12" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb11"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Duplication rule: one vertex becomes two (same attribute value)</span></span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>v1 <span class="op">=</span> <span class="pp">@acset</span> LSet <span class="cf">begin</span> X<span class="op">=</span><span class="fl">1</span>; D<span class="op">=</span><span class="fl">1</span>; f<span class="op">=</span>[<span class="fu">AttrVar</span>(<span class="fl">1</span>)] <span class="cf">end</span></span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>v2 <span class="op">=</span> <span class="pp">@acset</span> LSet <span class="cf">begin</span> X<span class="op">=</span><span class="fl">2</span>; D<span class="op">=</span><span class="fl">1</span>; f<span class="op">=</span>[<span class="fu">AttrVar</span>(<span class="fl">1</span>), <span class="fu">AttrVar</span>(<span class="fl">1</span>)] <span class="cf">end</span></span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a>dup_rule <span class="op">=</span> <span class="fu">ABMRule</span>(<span class="op">:</span>Duplicate,</span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a>    <span class="fu">Rule</span>(<span class="fu">id</span>(v1), <span class="fu">homomorphism</span>(v1, v2; initial<span class="op">=</span>(X<span class="op">=</span>[<span class="fl">1</span>],))),</span>
+<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a>    <span class="fu">DiscreteHazard</span>(<span class="fl">2.0</span>))  <span class="co"># fires at t=2 from enablement</span></span>
+<span id="cb11-8"><a href="#cb11-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-9"><a href="#cb11-9" aria-hidden="true" tabindex="-1"></a><span class="fu">println</span>(<span class="st">"Duplicate rule: vertex splits into two (copies attribute)"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Duplicate rule: vertex splits into two (copies attribute)</code></pre>
+</div>
+</div>
+<div id="14" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb13"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a>init_h <span class="op">=</span> <span class="pp">@acset</span> LSet <span class="cf">begin</span> X<span class="op">=</span><span class="fl">2</span>; f<span class="op">=</span>[<span class="fl">1.0</span>, <span class="fl">2.0</span>] <span class="cf">end</span></span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>abm_hybrid <span class="op">=</span> <span class="fu">ABM</span>([dup_rule], [linear_flow])</span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a>rt_h <span class="op">=</span> <span class="fu">RuntimeABM</span>(abm_hybrid, <span class="fu">deepcopy</span>(init_h))</span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a>traj_h <span class="op">=</span> <span class="fu">ABMTraj</span>(<span class="fu">deepcopy</span>(init_h))</span>
+<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a><span class="fu">run!</span>(abm_hybrid, rt_h, traj_h; maxtime<span class="op">=</span><span class="fl">3.0</span>, dt<span class="op">=</span><span class="fl">0.1</span>)</span>
+<span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-9"><a href="#cb13-9" aria-hidden="true" tabindex="-1"></a><span class="fu">println</span>(<span class="st">"Hybrid simulation (growth + duplication at t=2):"</span>)</span>
+<span id="cb13-10"><a href="#cb13-10" aria-hidden="true" tabindex="-1"></a><span class="fu">println</span>(<span class="st">"  Initial: 2 vertices, f=[1.0, 2.0]"</span>)</span>
+<span id="cb13-11"><a href="#cb13-11" aria-hidden="true" tabindex="-1"></a><span class="fu">println</span>(<span class="st">"  Final: </span><span class="sc">$</span>(<span class="fu">nparts</span>(rt_h.state, <span class="op">:</span>X))<span class="st"> vertices"</span>)</span>
+<span id="cb13-12"><a href="#cb13-12" aria-hidden="true" tabindex="-1"></a><span class="fu">println</span>(<span class="st">"  Attribute values: </span><span class="sc">$</span>(<span class="fu">round</span>.(rt_h.state[<span class="op">:</span>f], digits<span class="op">=</span><span class="fl">2</span>))<span class="st">"</span>)</span>
+<span id="cb13-13"><a href="#cb13-13" aria-hidden="true" tabindex="-1"></a><span class="fu">println</span>(<span class="st">"  Events fired: </span><span class="sc">$</span>(<span class="fu">length</span>(traj_h.events))<span class="st">"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Hybrid simulation (growth + duplication at t=2):
+  Initial: 2 vertices, f=[1.0, 2.0]
+  Final: 4 vertices
+  Attribute values: [5.0, 5.0, 4.0, 4.0]
+  Events fired: 2</code></pre>
+</div>
+</div>
+<section id="understanding-the-interplay" class="level3" data-number="4.1">
+<h3 data-number="4.1" class="anchored" data-anchor-id="understanding-the-interplay"><span class="header-section-number">4.1</span> Understanding the interplay</h3>
+<p>In the hybrid model, between stochastic events the ODE continuously integrates. When a duplication occurs, the ODE system is rebuilt to account for the new topology.</p>
+<div id="16" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb15"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> !<span class="fu">isempty</span>(traj_h.events)</span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a>    <span class="fu">println</span>(<span class="st">"Event timeline:"</span>)</span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> (t, _, name, _) <span class="kw">in</span> traj_h.events</span>
+<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a>        <span class="fu">println</span>(<span class="st">"  t=</span><span class="sc">$</span>(<span class="fu">round</span>(t, digits<span class="op">=</span><span class="fl">3</span>))<span class="st">: </span><span class="sc">$</span>name<span class="st">"</span>)</span>
+<span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a>    <span class="cf">end</span></span>
+<span id="cb15-6"><a href="#cb15-6" aria-hidden="true" tabindex="-1"></a><span class="cf">end</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Event timeline:
+  t=2.0: Duplicate
+  t=2.0: Duplicate</code></pre>
+</div>
+</div>
+</section>
+</section>
+<section id="example-3-growth-with-stochastic-removal" class="level2" data-number="5">
+<h2 data-number="5" class="anchored" data-anchor-id="example-3-growth-with-stochastic-removal"><span class="header-section-number">5</span> Example 3: Growth with Stochastic Removal</h2>
+<p>We can also combine continuous attribute growth with stochastic vertex removal.</p>
+<div id="18" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb17"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Removal rule: delete a vertex</span></span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a>v_del <span class="op">=</span> <span class="pp">@acset</span> LSet <span class="cf">begin</span> X<span class="op">=</span><span class="fl">1</span>; D<span class="op">=</span><span class="fl">1</span>; f<span class="op">=</span>[<span class="fu">AttrVar</span>(<span class="fl">1</span>)] <span class="cf">end</span></span>
+<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a>empty <span class="op">=</span> <span class="pp">@acset</span> LSet <span class="cf">begin</span> <span class="cf">end</span></span>
+<span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-5"><a href="#cb17-5" aria-hidden="true" tabindex="-1"></a>remove_rule <span class="op">=</span> <span class="fu">ABMRule</span>(<span class="op">:</span>Remove,</span>
+<span id="cb17-6"><a href="#cb17-6" aria-hidden="true" tabindex="-1"></a>    <span class="fu">Rule</span>(<span class="fu">homomorphism</span>(empty, v_del), <span class="fu">id</span>(empty)),</span>
+<span id="cb17-7"><a href="#cb17-7" aria-hidden="true" tabindex="-1"></a>    <span class="fu">ContinuousHazard</span>(<span class="fl">0.5</span>))</span>
+<span id="cb17-8"><a href="#cb17-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-9"><a href="#cb17-9" aria-hidden="true" tabindex="-1"></a><span class="fu">println</span>(<span class="st">"Remove rule: delete a vertex at rate 0.5"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Remove rule: delete a vertex at rate 0.5</code></pre>
+</div>
+</div>
+<div id="20" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb19"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a>init_r <span class="op">=</span> <span class="pp">@acset</span> LSet <span class="cf">begin</span> X<span class="op">=</span><span class="fl">5</span>; f<span class="op">=</span>[<span class="fl">1.0</span>, <span class="fl">2.0</span>, <span class="fl">3.0</span>, <span class="fl">4.0</span>, <span class="fl">5.0</span>] <span class="cf">end</span></span>
+<span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a>abm_growth_death <span class="op">=</span> <span class="fu">ABM</span>([remove_rule], [linear_flow])</span>
+<span id="cb19-3"><a href="#cb19-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-4"><a href="#cb19-4" aria-hidden="true" tabindex="-1"></a>rt_r <span class="op">=</span> <span class="fu">RuntimeABM</span>(abm_growth_death, <span class="fu">deepcopy</span>(init_r))</span>
+<span id="cb19-5"><a href="#cb19-5" aria-hidden="true" tabindex="-1"></a>traj_r <span class="op">=</span> <span class="fu">ABMTraj</span>(<span class="fu">deepcopy</span>(init_r))</span>
+<span id="cb19-6"><a href="#cb19-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-7"><a href="#cb19-7" aria-hidden="true" tabindex="-1"></a><span class="fu">run!</span>(abm_growth_death, rt_r, traj_r; maxtime<span class="op">=</span><span class="fl">5.0</span>, dt<span class="op">=</span><span class="fl">0.5</span>)</span>
+<span id="cb19-8"><a href="#cb19-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-9"><a href="#cb19-9" aria-hidden="true" tabindex="-1"></a><span class="fu">println</span>(<span class="st">"Growth + removal simulation:"</span>)</span>
+<span id="cb19-10"><a href="#cb19-10" aria-hidden="true" tabindex="-1"></a><span class="fu">println</span>(<span class="st">"  Initial: 5 vertices"</span>)</span>
+<span id="cb19-11"><a href="#cb19-11" aria-hidden="true" tabindex="-1"></a><span class="fu">println</span>(<span class="st">"  Final: </span><span class="sc">$</span>(<span class="fu">nparts</span>(rt_r.state, <span class="op">:</span>X))<span class="st"> vertices"</span>)</span>
+<span id="cb19-12"><a href="#cb19-12" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> <span class="fu">nparts</span>(rt_r.state, <span class="op">:</span>X) <span class="op">&gt;</span> <span class="fl">0</span></span>
+<span id="cb19-13"><a href="#cb19-13" aria-hidden="true" tabindex="-1"></a>    <span class="fu">println</span>(<span class="st">"  Surviving values: </span><span class="sc">$</span>(<span class="fu">round</span>.(rt_r.state[<span class="op">:</span>f], digits<span class="op">=</span><span class="fl">2</span>))<span class="st">"</span>)</span>
+<span id="cb19-14"><a href="#cb19-14" aria-hidden="true" tabindex="-1"></a><span class="cf">end</span></span>
+<span id="cb19-15"><a href="#cb19-15" aria-hidden="true" tabindex="-1"></a><span class="fu">println</span>(<span class="st">"  Events: </span><span class="sc">$</span>(<span class="fu">length</span>(traj_r.events))<span class="st">"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Growth + removal simulation:
+  Initial: 5 vertices
+  Final: 0 vertices
+  Events: 5</code></pre>
+</div>
+</div>
+</section>
+<section id="example-4-sensitivity-to-ode-step-size" class="level2" data-number="6">
+<h2 data-number="6" class="anchored" data-anchor-id="example-4-sensitivity-to-ode-step-size"><span class="header-section-number">6</span> Example 4: Sensitivity to ODE Step Size</h2>
+<p>The <code>dt</code> parameter controls the trade-off between accuracy and computational cost.</p>
+<div id="22" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb21"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="fu">println</span>(<span class="st">"Effect of dt on ODE accuracy (10 time units, growth rate 1.0):"</span>)</span>
+<span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> dt <span class="kw">in</span> [<span class="fl">2.0</span>, <span class="fl">1.0</span>, <span class="fl">0.5</span>, <span class="fl">0.1</span>]</span>
+<span id="cb21-3"><a href="#cb21-3" aria-hidden="true" tabindex="-1"></a>    init_dt <span class="op">=</span> <span class="pp">@acset</span> LSet <span class="cf">begin</span> X<span class="op">=</span><span class="fl">1</span>; f<span class="op">=</span>[<span class="fl">0.0</span>] <span class="cf">end</span></span>
+<span id="cb21-4"><a href="#cb21-4" aria-hidden="true" tabindex="-1"></a>    abm_dt <span class="op">=</span> <span class="fu">ABM</span>(ABMRule[], [linear_flow])</span>
+<span id="cb21-5"><a href="#cb21-5" aria-hidden="true" tabindex="-1"></a>    rt_dt <span class="op">=</span> <span class="fu">RuntimeABM</span>(abm_dt, <span class="fu">deepcopy</span>(init_dt))</span>
+<span id="cb21-6"><a href="#cb21-6" aria-hidden="true" tabindex="-1"></a>    traj_dt <span class="op">=</span> <span class="fu">ABMTraj</span>(<span class="fu">deepcopy</span>(init_dt))</span>
+<span id="cb21-7"><a href="#cb21-7" aria-hidden="true" tabindex="-1"></a>    <span class="fu">run!</span>(abm_dt, rt_dt, traj_dt; maxtime<span class="op">=</span><span class="fl">10.0</span>, dt<span class="op">=</span>dt)</span>
+<span id="cb21-8"><a href="#cb21-8" aria-hidden="true" tabindex="-1"></a>    val <span class="op">=</span> <span class="fu">round</span>(rt_dt.state[<span class="op">:</span>f][<span class="fl">1</span>], digits<span class="op">=</span><span class="fl">4</span>)</span>
+<span id="cb21-9"><a href="#cb21-9" aria-hidden="true" tabindex="-1"></a>    err <span class="op">=</span> <span class="fu">round</span>(<span class="fu">abs</span>(val <span class="op">-</span> <span class="fl">10.0</span>), digits<span class="op">=</span><span class="fl">4</span>)</span>
+<span id="cb21-10"><a href="#cb21-10" aria-hidden="true" tabindex="-1"></a>    <span class="fu">println</span>(<span class="st">"  dt=</span><span class="sc">$</span>dt<span class="st">: f=</span><span class="sc">$</span>(val)<span class="st">, error=</span><span class="sc">$</span>(err)<span class="st">"</span>)</span>
+<span id="cb21-11"><a href="#cb21-11" aria-hidden="true" tabindex="-1"></a><span class="cf">end</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Effect of dt on ODE accuracy (10 time units, growth rate 1.0):
+  dt=2.0: f=10.0, error=0.0
+  dt=1.0: f=10.0, error=0.0
+  dt=0.5: f=10.0, error=0.0
+  dt=0.1: f=10.0, error=0.0</code></pre>
+</div>
+</div>
+</section>
+<section id="summary" class="level2" data-number="7">
+<h2 data-number="7" class="anchored" data-anchor-id="summary"><span class="header-section-number">7</span> Summary</h2>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 36%">
+<col style="width: 30%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Component</th>
+<th>Purpose</th>
+<th>Key Type</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>RawODE([f1, f2, ...])</code></td>
+<td>ODE dynamics functions <code>u_i -&gt; du_i/dt</code></td>
+<td><code>AbsDynamics</code></td>
+</tr>
+<tr class="even">
+<td><code>ABMFlow(pat, dyn, name, acs, mapping)</code></td>
+<td>Associates pattern to continuous dynamics</td>
+<td>Struct</td>
+</tr>
+<tr class="odd">
+<td><code>AttrVar(i)</code></td>
+<td>Placeholder in pattern for i-th ODE variable</td>
+<td>Pattern construction</td>
+</tr>
+<tr class="even">
+<td><code>mapping = [(:D =&gt; 1)]</code></td>
+<td>Links attribute type <code>:D</code> to variable index 1</td>
+<td>Flow configuration</td>
+</tr>
+<tr class="odd">
+<td><code>dt</code> kwarg in <code>run!</code></td>
+<td>ODE integration step size</td>
+<td>Simulation parameter</td>
+</tr>
+<tr class="even">
+<td><code>RuntimeABM(abm, init)</code></td>
+<td>Low-level runtime for hybrid simulation</td>
+<td>Runtime state</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Key points:</strong></p>
+<ul>
+<li>Each <code>ABMFlow</code> pattern with <code>AttrVar</code> placeholders creates ODE variables</li>
+<li>Multiple matches of the same pattern create independent ODE variables</li>
+<li>Stochastic events can change topology; the ODE system is rebuilt afterward</li>
+<li>The <code>dt</code> parameter controls how often ODE integration steps are taken between checking for stochastic events</li>
+</ul>
+</section>
+
+</main>
+<!-- /main column -->
+<script id="quarto-html-after-body" type="application/javascript">
+  window.document.addEventListener("DOMContentLoaded", function (event) {
+    const icon = "";
+    const anchorJS = new window.AnchorJS();
+    anchorJS.options = {
+      placement: 'right',
+      icon: icon
+    };
+    anchorJS.add('.anchored');
+    const isCodeAnnotation = (el) => {
+      for (const clz of el.classList) {
+        if (clz.startsWith('code-annotation-')) {                     
+          return true;
+        }
+      }
+      return false;
+    }
+    const onCopySuccess = function(e) {
+      // button target
+      const button = e.trigger;
+      // don't keep focus
+      button.blur();
+      // flash "checked"
+      button.classList.add('code-copy-button-checked');
+      var currentTitle = button.getAttribute("title");
+      button.setAttribute("title", "Copied!");
+      let tooltip;
+      if (window.bootstrap) {
+        button.setAttribute("data-bs-toggle", "tooltip");
+        button.setAttribute("data-bs-placement", "left");
+        button.setAttribute("data-bs-title", "Copied!");
+        tooltip = new bootstrap.Tooltip(button, 
+          { trigger: "manual", 
+            customClass: "code-copy-button-tooltip",
+            offset: [0, -8]});
+        tooltip.show();    
+      }
+      setTimeout(function() {
+        if (tooltip) {
+          tooltip.hide();
+          button.removeAttribute("data-bs-title");
+          button.removeAttribute("data-bs-toggle");
+          button.removeAttribute("data-bs-placement");
+        }
+        button.setAttribute("title", currentTitle);
+        button.classList.remove('code-copy-button-checked');
+      }, 1000);
+      // clear code selection
+      e.clearSelection();
+    }
+    const getTextToCopy = function(trigger) {
+      const outerScaffold = trigger.parentElement.cloneNode(true);
+      const codeEl = outerScaffold.querySelector('code');
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+    }
+    const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+      text: getTextToCopy
+    });
+    clipboard.on('success', onCopySuccess);
+    if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+      const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+        text: getTextToCopy,
+        container: window.document.getElementById('quarto-embedded-source-code-modal')
+      });
+      clipboardModal.on('success', onCopySuccess);
+    }
+      var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+      var mailtoRegex = new RegExp(/^mailto:/);
+        var filterRegex = new RegExp('/' + window.location.host + '/');
+      var isInternal = (href) => {
+          return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+      }
+      // Inspect non-navigation links and adorn them if external
+     var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+      for (var i=0; i<links.length; i++) {
+        const link = links[i];
+        if (!isInternal(link.href)) {
+          // undo the damage that might have been done by quarto-nav.js in the case of
+          // links that we want to consider external
+          if (link.dataset.originalHref !== undefined) {
+            link.href = link.dataset.originalHref;
+          }
+        }
+      }
+    function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+      const config = {
+        allowHTML: true,
+        maxWidth: 500,
+        delay: 100,
+        arrow: false,
+        appendTo: function(el) {
+            return el.parentElement;
+        },
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'quarto',
+        placement: 'bottom-start',
+      };
+      if (contentFn) {
+        config.content = contentFn;
+      }
+      if (onTriggerFn) {
+        config.onTrigger = onTriggerFn;
+      }
+      if (onUntriggerFn) {
+        config.onUntrigger = onUntriggerFn;
+      }
+      window.tippy(el, config); 
+    }
+    const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+    for (var i=0; i<noterefs.length; i++) {
+      const ref = noterefs[i];
+      tippyHover(ref, function() {
+        // use id or data attribute instead here
+        let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+        try { href = new URL(href).hash; } catch {}
+        const id = href.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note) {
+          return note.innerHTML;
+        } else {
+          return "";
+        }
+      });
+    }
+    const xrefs = window.document.querySelectorAll('a.quarto-xref');
+    const processXRef = (id, note) => {
+      // Strip column container classes
+      const stripColumnClz = (el) => {
+        el.classList.remove("page-full", "page-columns");
+        if (el.children) {
+          for (const child of el.children) {
+            stripColumnClz(child);
+          }
+        }
+      }
+      stripColumnClz(note)
+      if (id === null || id.startsWith('sec-')) {
+        // Special case sections, only their first couple elements
+        const container = document.createElement("div");
+        if (note.children && note.children.length > 2) {
+          container.appendChild(note.children[0].cloneNode(true));
+          for (let i = 1; i < note.children.length; i++) {
+            const child = note.children[i];
+            if (child.tagName === "P" && child.innerText === "") {
+              continue;
+            } else {
+              container.appendChild(child.cloneNode(true));
+              break;
+            }
+          }
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(container);
+          }
+          return container.innerHTML
+        } else {
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(note);
+          }
+          return note.innerHTML;
+        }
+      } else {
+        // Remove any anchor links if they are present
+        const anchorLink = note.querySelector('a.anchorjs-link');
+        if (anchorLink) {
+          anchorLink.remove();
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        if (note.classList.contains("callout")) {
+          return note.outerHTML;
+        } else {
+          return note.innerHTML;
+        }
+      }
+    }
+    for (var i=0; i<xrefs.length; i++) {
+      const xref = xrefs[i];
+      tippyHover(xref, undefined, function(instance) {
+        instance.disable();
+        let url = xref.getAttribute('href');
+        let hash = undefined; 
+        if (url.startsWith('#')) {
+          hash = url;
+        } else {
+          try { hash = new URL(url).hash; } catch {}
+        }
+        if (hash) {
+          const id = hash.replace(/^#\/?/, "");
+          const note = window.document.getElementById(id);
+          if (note !== null) {
+            try {
+              const html = processXRef(id, note.cloneNode(true));
+              instance.setContent(html);
+            } finally {
+              instance.enable();
+              instance.show();
+            }
+          } else {
+            // See if we can fetch this
+            fetch(url.split('#')[0])
+            .then(res => res.text())
+            .then(html => {
+              const parser = new DOMParser();
+              const htmlDoc = parser.parseFromString(html, "text/html");
+              const note = htmlDoc.getElementById(id);
+              if (note !== null) {
+                const html = processXRef(id, note);
+                instance.setContent(html);
+              } 
+            }).finally(() => {
+              instance.enable();
+              instance.show();
+            });
+          }
+        } else {
+          // See if we can fetch a full url (with no hash to target)
+          // This is a special case and we should probably do some content thinning / targeting
+          fetch(url)
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.querySelector('main.content');
+            if (note !== null) {
+              // This should only happen for chapter cross references
+              // (since there is no id in the URL)
+              // remove the first header
+              if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+                note.children[0].remove();
+              }
+              const html = processXRef(null, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      }, function(instance) {
+      });
+    }
+        let selectedAnnoteEl;
+        const selectorForAnnotation = ( cell, annotation) => {
+          let cellAttr = 'data-code-cell="' + cell + '"';
+          let lineAttr = 'data-code-annotation="' +  annotation + '"';
+          const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+          return selector;
+        }
+        const selectCodeLines = (annoteEl) => {
+          const doc = window.document;
+          const targetCell = annoteEl.getAttribute("data-target-cell");
+          const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+          const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+          const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+          const lineIds = lines.map((line) => {
+            return targetCell + "-" + line;
+          })
+          let top = null;
+          let height = null;
+          let parent = null;
+          if (lineIds.length > 0) {
+              //compute the position of the single el (top and bottom and make a div)
+              const el = window.document.getElementById(lineIds[0]);
+              top = el.offsetTop;
+              height = el.offsetHeight;
+              parent = el.parentElement.parentElement;
+            if (lineIds.length > 1) {
+              const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+              const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+              height = bottom - top;
+            }
+            if (top !== null && height !== null && parent !== null) {
+              // cook up a div (if necessary) and position it 
+              let div = window.document.getElementById("code-annotation-line-highlight");
+              if (div === null) {
+                div = window.document.createElement("div");
+                div.setAttribute("id", "code-annotation-line-highlight");
+                div.style.position = 'absolute';
+                parent.appendChild(div);
+              }
+              div.style.top = top - 2 + "px";
+              div.style.height = height + 4 + "px";
+              div.style.left = 0;
+              let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+              if (gutterDiv === null) {
+                gutterDiv = window.document.createElement("div");
+                gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+                gutterDiv.style.position = 'absolute';
+                const codeCell = window.document.getElementById(targetCell);
+                const gutter = codeCell.querySelector('.code-annotation-gutter');
+                gutter.appendChild(gutterDiv);
+              }
+              gutterDiv.style.top = top - 2 + "px";
+              gutterDiv.style.height = height + 4 + "px";
+            }
+            selectedAnnoteEl = annoteEl;
+          }
+        };
+        const unselectCodeLines = () => {
+          const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+          elementsIds.forEach((elId) => {
+            const div = window.document.getElementById(elId);
+            if (div) {
+              div.remove();
+            }
+          });
+          selectedAnnoteEl = undefined;
+        };
+          // Handle positioning of the toggle
+      window.addEventListener(
+        "resize",
+        throttle(() => {
+          elRect = undefined;
+          if (selectedAnnoteEl) {
+            selectCodeLines(selectedAnnoteEl);
+          }
+        }, 10)
+      );
+      function throttle(fn, ms) {
+      let throttle = false;
+      let timer;
+        return (...args) => {
+          if(!throttle) { // first call gets through
+              fn.apply(this, args);
+              throttle = true;
+          } else { // all the others get throttled
+              if(timer) clearTimeout(timer); // cancel #2
+              timer = setTimeout(() => {
+                fn.apply(this, args);
+                timer = throttle = false;
+              }, ms);
+          }
+        };
+      }
+        // Attach click handler to the DT
+        const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+        for (const annoteDlNode of annoteDls) {
+          annoteDlNode.addEventListener('click', (event) => {
+            const clickedEl = event.target;
+            if (clickedEl !== selectedAnnoteEl) {
+              unselectCodeLines();
+              const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+              if (activeEl) {
+                activeEl.classList.remove('code-annotation-active');
+              }
+              selectCodeLines(clickedEl);
+              clickedEl.classList.add('code-annotation-active');
+            } else {
+              // Unselect the line
+              unselectCodeLines();
+              clickedEl.classList.remove('code-annotation-active');
+            }
+          });
+        }
+    const findCites = (el) => {
+      const parentEl = el.parentElement;
+      if (parentEl) {
+        const cites = parentEl.dataset.cites;
+        if (cites) {
+          return {
+            el,
+            cites: cites.split(' ')
+          };
+        } else {
+          return findCites(el.parentElement)
+        }
+      } else {
+        return undefined;
+      }
+    };
+    var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+    for (var i=0; i<bibliorefs.length; i++) {
+      const ref = bibliorefs[i];
+      const citeInfo = findCites(ref);
+      if (citeInfo) {
+        tippyHover(citeInfo.el, function() {
+          var popup = window.document.createElement('div');
+          citeInfo.cites.forEach(function(cite) {
+            var citeDiv = window.document.createElement('div');
+            citeDiv.classList.add('hanging-indent');
+            citeDiv.classList.add('csl-entry');
+            var biblioDiv = window.document.getElementById('ref-' + cite);
+            if (biblioDiv) {
+              citeDiv.innerHTML = biblioDiv.innerHTML;
+            }
+            popup.appendChild(citeDiv);
+          });
+          return popup.innerHTML;
+        });
+      }
+    }
+  });
+  </script>
+</div> <!-- /content -->
+
+
+
+
+</body></html>

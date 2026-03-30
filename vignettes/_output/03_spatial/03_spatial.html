@@ -1,0 +1,1018 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.9.28">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+<meta name="author" content="Simon Frost">
+<meta name="dcterms.date" content="2026-03-29">
+
+<title>Spatial Epidemiology</title>
+<style>
+/* Default styles provided by pandoc.
+** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+*/
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="03_spatial_files/libs/clipboard/clipboard.min.js"></script>
+<script src="03_spatial_files/libs/quarto-html/quarto.js" type="module"></script>
+<script src="03_spatial_files/libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="03_spatial_files/libs/quarto-html/popper.min.js"></script>
+<script src="03_spatial_files/libs/quarto-html/tippy.umd.min.js"></script>
+<script src="03_spatial_files/libs/quarto-html/anchor.min.js"></script>
+<link href="03_spatial_files/libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="03_spatial_files/libs/quarto-html/quarto-syntax-highlighting-1d541e707deb911ee702dcbe28eecf08.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="03_spatial_files/libs/bootstrap/bootstrap.min.js"></script>
+<link href="03_spatial_files/libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="03_spatial_files/libs/bootstrap/bootstrap-f93d581b41f20e53031fef139986cb6a.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+
+
+</head>
+
+<body class="quarto-light">
+
+<div id="quarto-content" class="page-columns page-rows-contents page-layout-article">
+<div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+  <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">Table of contents</h2>
+   
+  <ul>
+  <li><a href="#overview" id="toc-overview" class="nav-link active" data-scroll-target="#overview"><span class="header-section-number">1</span> Overview</a></li>
+  <li><a href="#setup" id="toc-setup" class="nav-link" data-scroll-target="#setup"><span class="header-section-number">2</span> Setup</a></li>
+  <li><a href="#part-1-network-sir-with-networkify" id="toc-part-1-network-sir-with-networkify" class="nav-link" data-scroll-target="#part-1-network-sir-with-networkify"><span class="header-section-number">3</span> Part 1: Network SIR with <code>networkify</code></a>
+  <ul class="collapse">
+  <li><a href="#defining-the-schema" id="toc-defining-the-schema" class="nav-link" data-scroll-target="#defining-the-schema"><span class="header-section-number">3.1</span> Defining the schema</a></li>
+  <li><a href="#creating-the-acset-type-and-initial-state" id="toc-creating-the-acset-type-and-initial-state" class="nav-link" data-scroll-target="#creating-the-acset-type-and-initial-state"><span class="header-section-number">3.2</span> Creating the ACSet type and initial state</a></li>
+  <li><a href="#infection-rule-requires-adjacency" id="toc-infection-rule-requires-adjacency" class="nav-link" data-scroll-target="#infection-rule-requires-adjacency"><span class="header-section-number">3.3</span> Infection rule: requires adjacency</a></li>
+  <li><a href="#recovery-rule" id="toc-recovery-rule" class="nav-link" data-scroll-target="#recovery-rule"><span class="header-section-number">3.4</span> Recovery rule</a></li>
+  <li><a href="#running-the-network-sir" id="toc-running-the-network-sir" class="nav-link" data-scroll-target="#running-the-network-sir"><span class="header-section-number">3.5</span> Running the network SIR</a></li>
+  </ul></li>
+  <li><a href="#part-2-spatial-utilities" id="toc-part-2-spatial-utilities" class="nav-link" data-scroll-target="#part-2-spatial-utilities"><span class="header-section-number">4</span> Part 2: Spatial Utilities</a>
+  <ul class="collapse">
+  <li><a href="#defining-a-spatial-schema" id="toc-defining-a-spatial-schema" class="nav-link" data-scroll-target="#defining-a-spatial-schema"><span class="header-section-number">4.1</span> Defining a spatial schema</a></li>
+  <li><a href="#creating-a-spatial-population" id="toc-creating-a-spatial-population" class="nav-link" data-scroll-target="#creating-a-spatial-population"><span class="header-section-number">4.2</span> Creating a spatial population</a></li>
+  <li><a href="#extracting-positions" id="toc-extracting-positions" class="nav-link" data-scroll-target="#extracting-positions"><span class="header-section-number">4.3</span> Extracting positions</a></li>
+  <li><a href="#finding-neighbors-within-radius" id="toc-finding-neighbors-within-radius" class="nav-link" data-scroll-target="#finding-neighbors-within-radius"><span class="header-section-number">4.4</span> Finding neighbors within radius</a></li>
+  <li><a href="#pairwise-distance-matrix" id="toc-pairwise-distance-matrix" class="nav-link" data-scroll-target="#pairwise-distance-matrix"><span class="header-section-number">4.5</span> Pairwise distance matrix</a></li>
+  </ul></li>
+  <li><a href="#part-3-shortest-distance-on-networks" id="toc-part-3-shortest-distance-on-networks" class="nav-link" data-scroll-target="#part-3-shortest-distance-on-networks"><span class="header-section-number">5</span> Part 3: Shortest Distance on Networks</a>
+  <ul class="collapse">
+  <li><a href="#a-small-network" id="toc-a-small-network" class="nav-link" data-scroll-target="#a-small-network"><span class="header-section-number">5.1</span> A small network</a></li>
+  <li><a href="#distance-affects-transmission-probability" id="toc-distance-affects-transmission-probability" class="nav-link" data-scroll-target="#distance-affects-transmission-probability"><span class="header-section-number">5.2</span> Distance affects transmission probability</a></li>
+  <li><a href="#disconnected-components" id="toc-disconnected-components" class="nav-link" data-scroll-target="#disconnected-components"><span class="header-section-number">5.3</span> Disconnected components</a></li>
+  </ul></li>
+  <li><a href="#summary" id="toc-summary" class="nav-link" data-scroll-target="#summary"><span class="header-section-number">6</span> Summary</a></li>
+  </ul>
+<div class="quarto-alternate-formats"><h2>Other Formats</h2><ul><li><a href="03_spatial.pdf"><i class="bi bi-file-pdf"></i>PDF</a></li><li><a href="03_spatial.md"><i class="bi bi-file-code"></i>Github (GFM)</a></li></ul></div></nav>
+</div>
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">Spatial Epidemiology</h1>
+<p class="subtitle lead">Network structure and spatial utilities in AlgebraicABMs.jl</p>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    <div>
+    <div class="quarto-title-meta-heading">Author</div>
+    <div class="quarto-title-meta-contents">
+             <p>Simon Frost </p>
+          </div>
+  </div>
+    
+    <div>
+    <div class="quarto-title-meta-heading">Published</div>
+    <div class="quarto-title-meta-contents">
+      <p class="date">March 29, 2026</p>
+    </div>
+  </div>
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<section id="overview" class="level2" data-number="1">
+<h2 data-number="1" class="anchored" data-anchor-id="overview"><span class="header-section-number">1</span> Overview</h2>
+<p>AlgebraicABMs.jl provides tools for spatially-structured agent-based models:</p>
+<ol type="1">
+<li><strong><code>networkify</code></strong> — automatically extends a schema with graph structure (vertices, edges, location homs)</li>
+<li><strong>Spatial utilities</strong> — <code>positions()</code>, <code>within_radius()</code>, <code>pairwise_distances()</code> for coordinate-based models</li>
+<li><strong><code>shortest_distance</code></strong> — BFS-based graph distance between vertices</li>
+</ol>
+<p>This vignette demonstrates each capability with epidemiological examples.</p>
+</section>
+<section id="setup" class="level2" data-number="2">
+<h2 data-number="2" class="anchored" data-anchor-id="setup"><span class="header-section-number">2</span> Setup</h2>
+<div id="2" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">using</span> <span class="bu">AlgebraicABMs</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">using</span> <span class="bu">Catlab</span>, <span class="bu">AlgebraicRewriting</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">using</span> <span class="bu">Distributions</span>: Exponential</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="im">using</span> <span class="bu">Random</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="bu">Random</span>.<span class="fu">seed!</span>(<span class="fl">42</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display" data-execution_count="1">
+<pre><code>TaskLocalRNG()</code></pre>
+</div>
+</div>
+</section>
+<section id="part-1-network-sir-with-networkify" class="level2" data-number="3">
+<h2 data-number="3" class="anchored" data-anchor-id="part-1-network-sir-with-networkify"><span class="header-section-number">3</span> Part 1: Network SIR with <code>networkify</code></h2>
+<section id="defining-the-schema" class="level3" data-number="3.1">
+<h3 data-number="3.1" class="anchored" data-anchor-id="defining-the-schema"><span class="header-section-number">3.1</span> Defining the schema</h3>
+<p>We start with a simple schema where <code>S</code>, <code>I</code>, and <code>R</code> represent agents in each compartment, then use <code>networkify</code> to add graph structure.</p>
+<div id="4" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="pp">@present</span> <span class="fu">SchSIR</span>(FreeSchema) <span class="cf">begin</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>    S<span class="op">::</span><span class="dt">Ob</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>    I<span class="op">::</span><span class="dt">Ob</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>    R<span class="op">::</span><span class="dt">Ob</span></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a><span class="cf">end</span></span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>SchSIR_Net <span class="op">=</span> <span class="fu">networkify</span>(SchSIR)</span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a><span class="co"># Inspect the generated schema</span></span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a>gen_names <span class="op">=</span> [<span class="fu">first</span>(g) for g <span class="kw">in</span> <span class="fu">generators</span>(SchSIR_Net)]</span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a><span class="fu">println</span>(<span class="st">"Objects: "</span>, [<span class="fu">first</span>(g) for g <span class="kw">in</span> <span class="fu">generators</span>(SchSIR_Net, <span class="op">:</span>Ob)])</span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a><span class="fu">println</span>(<span class="st">"Homs: "</span>, [<span class="fu">first</span>(g) for g <span class="kw">in</span> <span class="fu">generators</span>(SchSIR_Net, <span class="op">:</span>Hom)])</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Objects: [:S, :I, :R, :V, :E]
+Homs: [:src, :tgt, :loc_S, :loc_I, :loc_R]</code></pre>
+</div>
+</div>
+<p><code>networkify</code> added:</p>
+<ul>
+<li>Objects <code>V</code> (vertices) and <code>E</code> (edges)</li>
+<li>Homs <code>src, tgt : E → V</code> (graph structure)</li>
+<li>Location homs <code>loc_S : S → V</code>, <code>loc_I : I → V</code>, <code>loc_R : R → V</code> (placing agents on the network)</li>
+</ul>
+</section>
+<section id="creating-the-acset-type-and-initial-state" class="level3" data-number="3.2">
+<h3 data-number="3.2" class="anchored" data-anchor-id="creating-the-acset-type-and-initial-state"><span class="header-section-number">3.2</span> Creating the ACSet type and initial state</h3>
+<div id="6" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="pp">@acset_type</span> <span class="fu">SIRNet</span>(SchSIR_Net, part_type<span class="op">=</span>BitSetParts)</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Build a small network: 8 nodes in a ring</span></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>n_nodes <span class="op">=</span> <span class="fl">8</span></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>n_s <span class="op">=</span> <span class="fl">6</span>  <span class="co"># susceptible agents</span></span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>n_i <span class="op">=</span> <span class="fl">2</span>  <span class="co"># infected agents</span></span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>state <span class="op">=</span> <span class="fu">SIRNet</span>()</span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a><span class="fu">add_parts!</span>(state, <span class="op">:</span>V, n_nodes)</span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a><span class="co"># Ring edges (undirected = two directed edges per connection)</span></span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> i <span class="kw">in</span> <span class="fl">1</span><span class="op">:</span>n_nodes</span>
+<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a>    j <span class="op">=</span> <span class="fu">mod1</span>(i <span class="op">+</span> <span class="fl">1</span>, n_nodes)</span>
+<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a>    <span class="fu">add_part!</span>(state, <span class="op">:</span>E; src<span class="op">=</span>i, tgt<span class="op">=</span>j)</span>
+<span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a>    <span class="fu">add_part!</span>(state, <span class="op">:</span>E; src<span class="op">=</span>j, tgt<span class="op">=</span>i)</span>
+<span id="cb5-16"><a href="#cb5-16" aria-hidden="true" tabindex="-1"></a><span class="cf">end</span></span>
+<span id="cb5-17"><a href="#cb5-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-18"><a href="#cb5-18" aria-hidden="true" tabindex="-1"></a><span class="co"># Place susceptible agents on nodes 1-6, infected on nodes 7-8</span></span>
+<span id="cb5-19"><a href="#cb5-19" aria-hidden="true" tabindex="-1"></a><span class="fu">add_parts!</span>(state, <span class="op">:</span>S, n_s; loc_S<span class="op">=</span><span class="fl">1</span><span class="op">:</span>n_s)</span>
+<span id="cb5-20"><a href="#cb5-20" aria-hidden="true" tabindex="-1"></a><span class="fu">add_parts!</span>(state, <span class="op">:</span>I, n_i; loc_I<span class="op">=</span>(n_s<span class="op">+</span><span class="fl">1</span>)<span class="op">:</span>(n_s<span class="op">+</span>n_i))</span>
+<span id="cb5-21"><a href="#cb5-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-22"><a href="#cb5-22" aria-hidden="true" tabindex="-1"></a><span class="fu">println</span>(<span class="st">"Network: </span><span class="sc">$</span>(<span class="fu">nparts</span>(state, <span class="op">:</span>V))<span class="st"> nodes, </span><span class="sc">$</span>(<span class="fu">nparts</span>(state, <span class="op">:</span>E))<span class="st"> edges"</span>)</span>
+<span id="cb5-23"><a href="#cb5-23" aria-hidden="true" tabindex="-1"></a><span class="fu">println</span>(<span class="st">"S=</span><span class="sc">$</span>(<span class="fu">nparts</span>(state, <span class="op">:</span>S))<span class="st">, I=</span><span class="sc">$</span>(<span class="fu">nparts</span>(state, <span class="op">:</span>I))<span class="st">, R=</span><span class="sc">$</span>(<span class="fu">nparts</span>(state, <span class="op">:</span>R))<span class="st">"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Network: 8 nodes, 16 edges
+S=6, I=2, R=0</code></pre>
+</div>
+</div>
+</section>
+<section id="infection-rule-requires-adjacency" class="level3" data-number="3.3">
+<h3 data-number="3.3" class="anchored" data-anchor-id="infection-rule-requires-adjacency"><span class="header-section-number">3.3</span> Infection rule: requires adjacency</h3>
+<p>Infection should only occur when a susceptible and an infected agent are on adjacent nodes. The rule pattern requires:</p>
+<ul>
+<li>An S agent on some node <code>v1</code></li>
+<li>An I agent on some node <code>v2</code></li>
+<li>An edge from <code>v1</code> to <code>v2</code></li>
+</ul>
+<p>The rule converts the S agent to an I agent.</p>
+<div id="8" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Pattern L: S on v1, I on v2, edge v1→v2</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>L_inf <span class="op">=</span> <span class="fu">SIRNet</span>()</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="fu">add_parts!</span>(L_inf, <span class="op">:</span>V, <span class="fl">2</span>)</span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a><span class="fu">add_part!</span>(L_inf, <span class="op">:</span>E; src<span class="op">=</span><span class="fl">1</span>, tgt<span class="op">=</span><span class="fl">2</span>)</span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a><span class="fu">add_part!</span>(L_inf, <span class="op">:</span>S; loc_S<span class="op">=</span><span class="fl">1</span>)</span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a><span class="fu">add_part!</span>(L_inf, <span class="op">:</span>I; loc_I<span class="op">=</span><span class="fl">2</span>)</span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a><span class="co"># Interface I: keep v1, v2, edge, and I (S is consumed)</span></span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a>I_inf <span class="op">=</span> <span class="fu">SIRNet</span>()</span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a><span class="fu">add_parts!</span>(I_inf, <span class="op">:</span>V, <span class="fl">2</span>)</span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a><span class="fu">add_part!</span>(I_inf, <span class="op">:</span>E; src<span class="op">=</span><span class="fl">1</span>, tgt<span class="op">=</span><span class="fl">2</span>)</span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a><span class="fu">add_part!</span>(I_inf, <span class="op">:</span>I; loc_I<span class="op">=</span><span class="fl">2</span>)</span>
+<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a><span class="co"># Right R: v1, v2, edge, old I stays, new I on v1 (converted from S)</span></span>
+<span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a>R_inf <span class="op">=</span> <span class="fu">SIRNet</span>()</span>
+<span id="cb7-16"><a href="#cb7-16" aria-hidden="true" tabindex="-1"></a><span class="fu">add_parts!</span>(R_inf, <span class="op">:</span>V, <span class="fl">2</span>)</span>
+<span id="cb7-17"><a href="#cb7-17" aria-hidden="true" tabindex="-1"></a><span class="fu">add_part!</span>(R_inf, <span class="op">:</span>E; src<span class="op">=</span><span class="fl">1</span>, tgt<span class="op">=</span><span class="fl">2</span>)</span>
+<span id="cb7-18"><a href="#cb7-18" aria-hidden="true" tabindex="-1"></a><span class="fu">add_part!</span>(R_inf, <span class="op">:</span>I; loc_I<span class="op">=</span><span class="fl">2</span>)</span>
+<span id="cb7-19"><a href="#cb7-19" aria-hidden="true" tabindex="-1"></a><span class="fu">add_part!</span>(R_inf, <span class="op">:</span>I; loc_I<span class="op">=</span><span class="fl">1</span>)</span>
+<span id="cb7-20"><a href="#cb7-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-21"><a href="#cb7-21" aria-hidden="true" tabindex="-1"></a>l_inf <span class="op">=</span> <span class="fu">homomorphism</span>(I_inf, L_inf; initial<span class="op">=</span>(V<span class="op">=</span>[<span class="fl">1</span>,<span class="fl">2</span>], E<span class="op">=</span>[<span class="fl">1</span>], I<span class="op">=</span>[<span class="fl">1</span>]))</span>
+<span id="cb7-22"><a href="#cb7-22" aria-hidden="true" tabindex="-1"></a>r_inf <span class="op">=</span> <span class="fu">homomorphism</span>(I_inf, R_inf; initial<span class="op">=</span>(V<span class="op">=</span>[<span class="fl">1</span>,<span class="fl">2</span>], E<span class="op">=</span>[<span class="fl">1</span>], I<span class="op">=</span>[<span class="fl">1</span>]))</span>
+<span id="cb7-23"><a href="#cb7-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-24"><a href="#cb7-24" aria-hidden="true" tabindex="-1"></a>infection <span class="op">=</span> <span class="fu">ABMRule</span>(<span class="op">:</span>Infection, <span class="fu">Rule</span>(l_inf, r_inf), <span class="fu">ContinuousHazard</span>(<span class="fl">0.5</span>))</span>
+<span id="cb7-25"><a href="#cb7-25" aria-hidden="true" tabindex="-1"></a><span class="fu">println</span>(<span class="st">"Infection rule: S + I (adjacent) → I + I"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Infection rule: S + I (adjacent) → I + I</code></pre>
+</div>
+</div>
+</section>
+<section id="recovery-rule" class="level3" data-number="3.4">
+<h3 data-number="3.4" class="anchored" data-anchor-id="recovery-rule"><span class="header-section-number">3.4</span> Recovery rule</h3>
+<p>Recovery converts an I agent to an R agent, independent of network structure.</p>
+<div id="10" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb9"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Pattern: single I agent on a node</span></span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>L_rec <span class="op">=</span> <span class="fu">SIRNet</span>()</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a><span class="fu">add_part!</span>(L_rec, <span class="op">:</span>V)</span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a><span class="fu">add_part!</span>(L_rec, <span class="op">:</span>I; loc_I<span class="op">=</span><span class="fl">1</span>)</span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a><span class="co"># Interface: just the node (I is removed)</span></span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>I_rec <span class="op">=</span> <span class="fu">SIRNet</span>()</span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a><span class="fu">add_part!</span>(I_rec, <span class="op">:</span>V)</span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a><span class="co"># Right: node with R agent</span></span>
+<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a>R_rec <span class="op">=</span> <span class="fu">SIRNet</span>()</span>
+<span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a><span class="fu">add_part!</span>(R_rec, <span class="op">:</span>V)</span>
+<span id="cb9-13"><a href="#cb9-13" aria-hidden="true" tabindex="-1"></a><span class="fu">add_part!</span>(R_rec, <span class="op">:</span>R; loc_R<span class="op">=</span><span class="fl">1</span>)</span>
+<span id="cb9-14"><a href="#cb9-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-15"><a href="#cb9-15" aria-hidden="true" tabindex="-1"></a>l_rec <span class="op">=</span> <span class="fu">homomorphism</span>(I_rec, L_rec; initial<span class="op">=</span>(V<span class="op">=</span>[<span class="fl">1</span>],))</span>
+<span id="cb9-16"><a href="#cb9-16" aria-hidden="true" tabindex="-1"></a>r_rec <span class="op">=</span> <span class="fu">homomorphism</span>(I_rec, R_rec; initial<span class="op">=</span>(V<span class="op">=</span>[<span class="fl">1</span>],))</span>
+<span id="cb9-17"><a href="#cb9-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-18"><a href="#cb9-18" aria-hidden="true" tabindex="-1"></a>recovery <span class="op">=</span> <span class="fu">ABMRule</span>(<span class="op">:</span>Recovery, <span class="fu">Rule</span>(l_rec, r_rec), <span class="fu">ContinuousHazard</span>(<span class="fu">Exponential</span>(<span class="fl">3.0</span>)))</span>
+<span id="cb9-19"><a href="#cb9-19" aria-hidden="true" tabindex="-1"></a><span class="fu">println</span>(<span class="st">"Recovery rule: I → R (mean time 3.0)"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Recovery rule: I → R (mean time 3.0)</code></pre>
+</div>
+</div>
+</section>
+<section id="running-the-network-sir" class="level3" data-number="3.5">
+<h3 data-number="3.5" class="anchored" data-anchor-id="running-the-network-sir"><span class="header-section-number">3.5</span> Running the network SIR</h3>
+<div id="12" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb11"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a>abm <span class="op">=</span> <span class="fu">ABM</span>([infection, recovery])</span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>result <span class="op">=</span> <span class="fu">run!</span>(abm, <span class="fu">deepcopy</span>(state); maxtime<span class="op">=</span><span class="fl">25.0</span>)</span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a><span class="fu">println</span>(<span class="st">"Events: </span><span class="sc">$</span>(<span class="fu">length</span>(result))<span class="st">"</span>)</span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> (i, (t, _, name, _)) <span class="kw">in</span> <span class="fu">enumerate</span>(result.events)</span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a>    i <span class="op">&gt;</span> <span class="fl">12</span> <span class="op">&amp;&amp;</span> <span class="cf">break</span></span>
+<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a>    <span class="fu">println</span>(<span class="st">"  t=</span><span class="sc">$</span>(<span class="fu">round</span>(t, digits<span class="op">=</span><span class="fl">3</span>))<span class="st">: </span><span class="sc">$</span>name<span class="st">"</span>)</span>
+<span id="cb11-8"><a href="#cb11-8" aria-hidden="true" tabindex="-1"></a><span class="cf">end</span></span>
+<span id="cb11-9"><a href="#cb11-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-10"><a href="#cb11-10" aria-hidden="true" tabindex="-1"></a><span class="co"># Final state</span></span>
+<span id="cb11-11"><a href="#cb11-11" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> !<span class="fu">isempty</span>(result.hist)</span>
+<span id="cb11-12"><a href="#cb11-12" aria-hidden="true" tabindex="-1"></a>    final <span class="op">=</span> <span class="fu">codom</span>(<span class="fu">right</span>(<span class="fu">last</span>(result.hist)))</span>
+<span id="cb11-13"><a href="#cb11-13" aria-hidden="true" tabindex="-1"></a>    <span class="fu">println</span>(<span class="st">"</span><span class="sc">\n</span><span class="st">Final: S=</span><span class="sc">$</span>(<span class="fu">nparts</span>(final, <span class="op">:</span>S))<span class="st">, I=</span><span class="sc">$</span>(<span class="fu">nparts</span>(final, <span class="op">:</span>I))<span class="st">, R=</span><span class="sc">$</span>(<span class="fu">nparts</span>(final, <span class="op">:</span>R))<span class="st">"</span>)</span>
+<span id="cb11-14"><a href="#cb11-14" aria-hidden="true" tabindex="-1"></a><span class="cf">end</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<div class="ansi-escaped-output">
+<pre><span class="ansi-cyan-fg ansi-bold">[ </span><span class="ansi-cyan-fg ansi-bold">Info: </span>Stochastic scheduling algorithm ran out of events
+Events: 6
+  t=0.064: Recovery
+  t=0.7: Infection
+  t=0.818: Infection
+  t=0.883: Recovery
+  t=1.42: Recovery
+  t=11.077: Recovery
+
+Final: S=4, I=0, R=4
+</pre>
+</div>
+</div>
+</div>
+<p>Infection spreads along the ring: only agents on adjacent nodes can interact. This is fundamentally different from a well-mixed model where any S-I pair can transmit.</p>
+</section>
+</section>
+<section id="part-2-spatial-utilities" class="level2" data-number="4">
+<h2 data-number="4" class="anchored" data-anchor-id="part-2-spatial-utilities"><span class="header-section-number">4</span> Part 2: Spatial Utilities</h2>
+<p>For models with continuous spatial coordinates, AlgebraicABMs provides <code>positions()</code>, <code>within_radius()</code>, and <code>pairwise_distances()</code>.</p>
+<section id="defining-a-spatial-schema" class="level3" data-number="4.1">
+<h3 data-number="4.1" class="anchored" data-anchor-id="defining-a-spatial-schema"><span class="header-section-number">4.1</span> Defining a spatial schema</h3>
+<div id="14" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb12"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="pp">@present</span> <span class="fu">SchSpatial</span>(FreeSchema) <span class="cf">begin</span></span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>    Agent<span class="op">::</span><span class="dt">Ob</span></span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>    Coord<span class="op">::</span><span class="dt">AttrType</span></span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a>    px<span class="op">::</span><span class="dt">Attr</span>(Agent, Coord)</span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a>    py<span class="op">::</span><span class="dt">Attr</span>(Agent, Coord)</span>
+<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a><span class="cf">end</span></span>
+<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a><span class="pp">@acset_type</span> <span class="fu">SpatialSet</span>(SchSpatial, part_type<span class="op">=</span>BitSetParts)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display" data-execution_count="1">
+<pre><code>SpatialSet</code></pre>
+</div>
+</div>
+</section>
+<section id="creating-a-spatial-population" class="level3" data-number="4.2">
+<h3 data-number="4.2" class="anchored" data-anchor-id="creating-a-spatial-population"><span class="header-section-number">4.2</span> Creating a spatial population</h3>
+<div id="16" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb14"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a>spatial_state <span class="op">=</span> <span class="fu">SpatialSet</span><span class="dt">{Float64}</span>()</span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a><span class="fu">add_parts!</span>(spatial_state, <span class="op">:</span>Agent, <span class="fl">6</span>;</span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a>    px <span class="op">=</span> [<span class="fl">0.0</span>, <span class="fl">1.0</span>, <span class="fl">0.5</span>, <span class="fl">5.0</span>, <span class="fl">5.5</span>, <span class="fl">10.0</span>],</span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a>    py <span class="op">=</span> [<span class="fl">0.0</span>, <span class="fl">0.0</span>, <span class="fl">0.8</span>, <span class="fl">5.0</span>, <span class="fl">5.2</span>, <span class="fl">10.0</span>])</span>
+<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-6"><a href="#cb14-6" aria-hidden="true" tabindex="-1"></a><span class="fu">println</span>(<span class="st">"Agents placed at:"</span>)</span>
+<span id="cb14-7"><a href="#cb14-7" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> i <span class="kw">in</span> <span class="fl">1</span><span class="op">:</span><span class="fu">nparts</span>(spatial_state, <span class="op">:</span>Agent)</span>
+<span id="cb14-8"><a href="#cb14-8" aria-hidden="true" tabindex="-1"></a>    x <span class="op">=</span> <span class="fu">subpart</span>(spatial_state, i, <span class="op">:</span>px)</span>
+<span id="cb14-9"><a href="#cb14-9" aria-hidden="true" tabindex="-1"></a>    y <span class="op">=</span> <span class="fu">subpart</span>(spatial_state, i, <span class="op">:</span>py)</span>
+<span id="cb14-10"><a href="#cb14-10" aria-hidden="true" tabindex="-1"></a>    <span class="fu">println</span>(<span class="st">"  Agent </span><span class="sc">$</span>i<span class="st">: (</span><span class="sc">$</span>x<span class="st">, </span><span class="sc">$</span>y<span class="st">)"</span>)</span>
+<span id="cb14-11"><a href="#cb14-11" aria-hidden="true" tabindex="-1"></a><span class="cf">end</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Agents placed at:
+  Agent 1: (0.0, 0.0)
+  Agent 2: (1.0, 0.0)
+  Agent 3: (0.5, 0.8)
+  Agent 4: (5.0, 5.0)
+  Agent 5: (5.5, 5.2)
+  Agent 6: (10.0, 10.0)</code></pre>
+</div>
+</div>
+</section>
+<section id="extracting-positions" class="level3" data-number="4.3">
+<h3 data-number="4.3" class="anchored" data-anchor-id="extracting-positions"><span class="header-section-number">4.3</span> Extracting positions</h3>
+<div id="18" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb16"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a>pos <span class="op">=</span> <span class="fu">positions</span>(spatial_state, <span class="op">:</span>Agent, [<span class="op">:</span>px, <span class="op">:</span>py])</span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a><span class="fu">println</span>(<span class="st">"Position matrix (2 × </span><span class="sc">$</span>(<span class="fu">size</span>(pos, <span class="fl">2</span>))<span class="st">):"</span>)</span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a><span class="fu">println</span>(<span class="st">"  x: "</span>, pos[<span class="fl">1</span>, <span class="op">:</span>])</span>
+<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a><span class="fu">println</span>(<span class="st">"  y: "</span>, pos[<span class="fl">2</span>, <span class="op">:</span>])</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Position matrix (2 × 6):
+  x: [0.0, 1.0, 0.5, 5.0, 5.5, 10.0]
+  y: [0.0, 0.0, 0.8, 5.0, 5.2, 10.0]</code></pre>
+</div>
+</div>
+</section>
+<section id="finding-neighbors-within-radius" class="level3" data-number="4.4">
+<h3 data-number="4.4" class="anchored" data-anchor-id="finding-neighbors-within-radius"><span class="header-section-number">4.4</span> Finding neighbors within radius</h3>
+<div id="20" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb18"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Agents within distance 2.0 of Agent 1</span></span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a>near_1 <span class="op">=</span> <span class="fu">within_radius</span>(spatial_state, <span class="fl">1</span>, <span class="fl">2.0</span>, <span class="op">:</span>Agent, [<span class="op">:</span>px, <span class="op">:</span>py])</span>
+<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a><span class="fu">println</span>(<span class="st">"Agents within radius 2.0 of Agent 1: </span><span class="sc">$</span>near_1<span class="st">"</span>)</span>
+<span id="cb18-4"><a href="#cb18-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-5"><a href="#cb18-5" aria-hidden="true" tabindex="-1"></a><span class="co"># Larger radius</span></span>
+<span id="cb18-6"><a href="#cb18-6" aria-hidden="true" tabindex="-1"></a>near_1_wide <span class="op">=</span> <span class="fu">within_radius</span>(spatial_state, <span class="fl">1</span>, <span class="fl">6.0</span>, <span class="op">:</span>Agent, [<span class="op">:</span>px, <span class="op">:</span>py])</span>
+<span id="cb18-7"><a href="#cb18-7" aria-hidden="true" tabindex="-1"></a><span class="fu">println</span>(<span class="st">"Agents within radius 6.0 of Agent 1: </span><span class="sc">$</span>near_1_wide<span class="st">"</span>)</span>
+<span id="cb18-8"><a href="#cb18-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-9"><a href="#cb18-9" aria-hidden="true" tabindex="-1"></a><span class="co"># Include self</span></span>
+<span id="cb18-10"><a href="#cb18-10" aria-hidden="true" tabindex="-1"></a>near_1_self <span class="op">=</span> <span class="fu">within_radius</span>(spatial_state, <span class="fl">1</span>, <span class="fl">2.0</span>, <span class="op">:</span>Agent, [<span class="op">:</span>px, <span class="op">:</span>py]; exclude_self<span class="op">=</span><span class="cn">false</span>)</span>
+<span id="cb18-11"><a href="#cb18-11" aria-hidden="true" tabindex="-1"></a><span class="fu">println</span>(<span class="st">"Within radius 2.0 (including self): </span><span class="sc">$</span>near_1_self<span class="st">"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Agents within radius 2.0 of Agent 1: [2, 3]
+Agents within radius 6.0 of Agent 1: [2, 3]
+Within radius 2.0 (including self): [1, 2, 3]</code></pre>
+</div>
+</div>
+<p>Agents 2 and 3 are close to Agent 1; Agents 4–6 are far away. This can drive spatial transmission rules where only nearby agents interact.</p>
+</section>
+<section id="pairwise-distance-matrix" class="level3" data-number="4.5">
+<h3 data-number="4.5" class="anchored" data-anchor-id="pairwise-distance-matrix"><span class="header-section-number">4.5</span> Pairwise distance matrix</h3>
+<div id="22" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb20"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a>D <span class="op">=</span> <span class="fu">pairwise_distances</span>(spatial_state, <span class="op">:</span>Agent, [<span class="op">:</span>px, <span class="op">:</span>py])</span>
+<span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a><span class="fu">println</span>(<span class="st">"Pairwise distance matrix (</span><span class="sc">$</span>(<span class="fu">size</span>(D))<span class="st">):"</span>)</span>
+<span id="cb20-3"><a href="#cb20-3" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> i <span class="kw">in</span> <span class="fl">1</span><span class="op">:</span><span class="fu">size</span>(D, <span class="fl">1</span>)</span>
+<span id="cb20-4"><a href="#cb20-4" aria-hidden="true" tabindex="-1"></a>    row <span class="op">=</span> <span class="fu">join</span>([<span class="fu">round</span>(D[i, j], digits<span class="op">=</span><span class="fl">2</span>) for j <span class="kw">in</span> <span class="fl">1</span><span class="op">:</span><span class="fu">size</span>(D, <span class="fl">2</span>)], <span class="st">"  "</span>)</span>
+<span id="cb20-5"><a href="#cb20-5" aria-hidden="true" tabindex="-1"></a>    <span class="fu">println</span>(<span class="st">"  [</span><span class="sc">$</span>row<span class="st">]"</span>)</span>
+<span id="cb20-6"><a href="#cb20-6" aria-hidden="true" tabindex="-1"></a><span class="cf">end</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Pairwise distance matrix ((6, 6)):
+  [0.0  1.0  0.94  7.07  7.57  14.14]
+  [1.0  0.0  0.94  6.4  6.88  13.45]
+  [0.94  0.94  0.0  6.16  6.66  13.22]
+  [7.07  6.4  6.16  0.0  0.54  7.07]
+  [7.57  6.88  6.66  0.54  0.0  6.58]
+  [14.14  13.45  13.22  7.07  6.58  0.0]</code></pre>
+</div>
+</div>
+<p>The distance matrix reveals spatial clusters: Agents 1–3 form one cluster, Agents 4–5 form another, and Agent 6 is isolated.</p>
+</section>
+</section>
+<section id="part-3-shortest-distance-on-networks" class="level2" data-number="5">
+<h2 data-number="5" class="anchored" data-anchor-id="part-3-shortest-distance-on-networks"><span class="header-section-number">5</span> Part 3: Shortest Distance on Networks</h2>
+<p>For graph-based models, <code>shortest_distance</code> computes BFS shortest paths.</p>
+<div id="24" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb22"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="im">using</span> <span class="bu">Catlab.CategoricalAlgebra.CSets</span>: MarkAsDeleted</span>
+<span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a><span class="pp">@present</span> <span class="fu">SchNet</span>(FreeSchema) <span class="cf">begin</span></span>
+<span id="cb22-3"><a href="#cb22-3" aria-hidden="true" tabindex="-1"></a>    V<span class="op">::</span><span class="dt">Ob</span>; E<span class="op">::</span><span class="dt">Ob</span>; src<span class="op">::</span><span class="dt">Hom</span>(E,V); tgt<span class="op">::</span><span class="dt">Hom</span>(E,V)</span>
+<span id="cb22-4"><a href="#cb22-4" aria-hidden="true" tabindex="-1"></a><span class="cf">end</span></span>
+<span id="cb22-5"><a href="#cb22-5" aria-hidden="true" tabindex="-1"></a><span class="pp">@acset_type</span> <span class="fu">NetGraph</span>(SchNet, part_type<span class="op">=</span>MarkAsDeleted)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display" data-execution_count="1">
+<pre><code>NetGraph</code></pre>
+</div>
+</div>
+<section id="a-small-network" class="level3" data-number="5.1">
+<h3 data-number="5.1" class="anchored" data-anchor-id="a-small-network"><span class="header-section-number">5.1</span> A small network</h3>
+<div id="26" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb24"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Linear chain: 1 → 2 → 3 → 4 → 5 (with back edges)</span></span>
+<span id="cb24-2"><a href="#cb24-2" aria-hidden="true" tabindex="-1"></a>net <span class="op">=</span> <span class="pp">@acset</span> NetGraph <span class="cf">begin</span></span>
+<span id="cb24-3"><a href="#cb24-3" aria-hidden="true" tabindex="-1"></a>    V <span class="op">=</span> <span class="fl">5</span></span>
+<span id="cb24-4"><a href="#cb24-4" aria-hidden="true" tabindex="-1"></a>    E <span class="op">=</span> <span class="fl">8</span></span>
+<span id="cb24-5"><a href="#cb24-5" aria-hidden="true" tabindex="-1"></a>    src <span class="op">=</span> [<span class="fl">1</span>, <span class="fl">2</span>, <span class="fl">3</span>, <span class="fl">4</span>, <span class="fl">2</span>, <span class="fl">3</span>, <span class="fl">4</span>, <span class="fl">5</span>]</span>
+<span id="cb24-6"><a href="#cb24-6" aria-hidden="true" tabindex="-1"></a>    tgt <span class="op">=</span> [<span class="fl">2</span>, <span class="fl">3</span>, <span class="fl">4</span>, <span class="fl">5</span>, <span class="fl">1</span>, <span class="fl">2</span>, <span class="fl">3</span>, <span class="fl">4</span>]</span>
+<span id="cb24-7"><a href="#cb24-7" aria-hidden="true" tabindex="-1"></a><span class="cf">end</span></span>
+<span id="cb24-8"><a href="#cb24-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb24-9"><a href="#cb24-9" aria-hidden="true" tabindex="-1"></a><span class="fu">println</span>(<span class="st">"Shortest distances from node 1:"</span>)</span>
+<span id="cb24-10"><a href="#cb24-10" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> v <span class="kw">in</span> <span class="fl">1</span><span class="op">:</span><span class="fl">5</span></span>
+<span id="cb24-11"><a href="#cb24-11" aria-hidden="true" tabindex="-1"></a>    d <span class="op">=</span> <span class="fu">shortest_distance</span>(net, <span class="fl">1</span>, v)</span>
+<span id="cb24-12"><a href="#cb24-12" aria-hidden="true" tabindex="-1"></a>    d_str <span class="op">=</span> d <span class="op">==</span> <span class="fu">typemax</span>(<span class="dt">Int</span>) ? <span class="st">"∞"</span> <span class="op">:</span> <span class="fu">string</span>(d)</span>
+<span id="cb24-13"><a href="#cb24-13" aria-hidden="true" tabindex="-1"></a>    <span class="fu">println</span>(<span class="st">"  d(1, </span><span class="sc">$</span>v<span class="st">) = </span><span class="sc">$</span>d_str<span class="st">"</span>)</span>
+<span id="cb24-14"><a href="#cb24-14" aria-hidden="true" tabindex="-1"></a><span class="cf">end</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Shortest distances from node 1:
+  d(1, 1) = 0
+  d(1, 2) = 1
+  d(1, 3) = 2
+  d(1, 4) = 3
+  d(1, 5) = 4</code></pre>
+</div>
+</div>
+</section>
+<section id="distance-affects-transmission-probability" class="level3" data-number="5.2">
+<h3 data-number="5.2" class="anchored" data-anchor-id="distance-affects-transmission-probability"><span class="header-section-number">5.2</span> Distance affects transmission probability</h3>
+<p>We can use graph distance in a <code>ClosureState</code> timer to make transmission probability decay with network distance.</p>
+<div id="28" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb26"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Two vertices connected by an edge — infection uses ClosureState</span></span>
+<span id="cb26-2"><a href="#cb26-2" aria-hidden="true" tabindex="-1"></a><span class="co"># that considers graph distance to modulate rate</span></span>
+<span id="cb26-3"><a href="#cb26-3" aria-hidden="true" tabindex="-1"></a>L_net <span class="op">=</span> <span class="pp">@acset</span> NetGraph <span class="cf">begin</span> V<span class="op">=</span><span class="fl">2</span>; E<span class="op">=</span><span class="fl">1</span>; src<span class="op">=</span>[<span class="fl">1</span>]; tgt<span class="op">=</span>[<span class="fl">2</span>] <span class="cf">end</span></span>
+<span id="cb26-4"><a href="#cb26-4" aria-hidden="true" tabindex="-1"></a>I_net <span class="op">=</span> <span class="pp">@acset</span> NetGraph <span class="cf">begin</span> V<span class="op">=</span><span class="fl">2</span> <span class="cf">end</span></span>
+<span id="cb26-5"><a href="#cb26-5" aria-hidden="true" tabindex="-1"></a>R_net <span class="op">=</span> <span class="pp">@acset</span> NetGraph <span class="cf">begin</span> V<span class="op">=</span><span class="fl">2</span> <span class="cf">end</span></span>
+<span id="cb26-6"><a href="#cb26-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-7"><a href="#cb26-7" aria-hidden="true" tabindex="-1"></a>net_inf_rule <span class="op">=</span> <span class="fu">Rule</span>(</span>
+<span id="cb26-8"><a href="#cb26-8" aria-hidden="true" tabindex="-1"></a>    <span class="fu">homomorphism</span>(I_net, L_net; initial<span class="op">=</span>(V<span class="op">=</span>[<span class="fl">1</span>,<span class="fl">2</span>],)),</span>
+<span id="cb26-9"><a href="#cb26-9" aria-hidden="true" tabindex="-1"></a>    <span class="fu">homomorphism</span>(I_net, R_net; initial<span class="op">=</span>(V<span class="op">=</span>[<span class="fl">1</span>,<span class="fl">2</span>],)))</span>
+<span id="cb26-10"><a href="#cb26-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-11"><a href="#cb26-11" aria-hidden="true" tabindex="-1"></a><span class="co"># Rate decays with shortest distance between matched vertices</span></span>
+<span id="cb26-12"><a href="#cb26-12" aria-hidden="true" tabindex="-1"></a>distance_timer <span class="op">=</span> <span class="fu">ClosureState</span>(m <span class="op">-&gt;</span> <span class="cf">begin</span></span>
+<span id="cb26-13"><a href="#cb26-13" aria-hidden="true" tabindex="-1"></a>    state <span class="op">=</span> <span class="fu">codom</span>(m)</span>
+<span id="cb26-14"><a href="#cb26-14" aria-hidden="true" tabindex="-1"></a>    v1 <span class="op">=</span> m[<span class="op">:</span>V](<span class="fl">1</span>)</span>
+<span id="cb26-15"><a href="#cb26-15" aria-hidden="true" tabindex="-1"></a>    v2 <span class="op">=</span> m[<span class="op">:</span>V](<span class="fl">2</span>)</span>
+<span id="cb26-16"><a href="#cb26-16" aria-hidden="true" tabindex="-1"></a>    d <span class="op">=</span> <span class="fu">shortest_distance</span>(state, v1, v2)</span>
+<span id="cb26-17"><a href="#cb26-17" aria-hidden="true" tabindex="-1"></a>    d <span class="op">=</span> d <span class="op">==</span> <span class="fu">typemax</span>(<span class="dt">Int</span>) ? <span class="fl">100</span> <span class="op">:</span> d</span>
+<span id="cb26-18"><a href="#cb26-18" aria-hidden="true" tabindex="-1"></a>    <span class="fu">Exponential</span>(<span class="fl">0.5</span> <span class="op">*</span> (<span class="fl">1</span> <span class="op">+</span> d))</span>
+<span id="cb26-19"><a href="#cb26-19" aria-hidden="true" tabindex="-1"></a><span class="cf">end</span>)</span>
+<span id="cb26-20"><a href="#cb26-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-21"><a href="#cb26-21" aria-hidden="true" tabindex="-1"></a>net_infection <span class="op">=</span> <span class="fu">ABMRule</span>(<span class="op">:</span>NetInf, net_inf_rule, distance_timer)</span>
+<span id="cb26-22"><a href="#cb26-22" aria-hidden="true" tabindex="-1"></a>abm_net <span class="op">=</span> <span class="fu">ABM</span>([net_infection])</span>
+<span id="cb26-23"><a href="#cb26-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-24"><a href="#cb26-24" aria-hidden="true" tabindex="-1"></a><span class="co"># Chain graph: 1-2-3-4-5 with all back-edges</span></span>
+<span id="cb26-25"><a href="#cb26-25" aria-hidden="true" tabindex="-1"></a>init_net <span class="op">=</span> <span class="pp">@acset</span> NetGraph <span class="cf">begin</span></span>
+<span id="cb26-26"><a href="#cb26-26" aria-hidden="true" tabindex="-1"></a>    V <span class="op">=</span> <span class="fl">5</span></span>
+<span id="cb26-27"><a href="#cb26-27" aria-hidden="true" tabindex="-1"></a>    E <span class="op">=</span> <span class="fl">8</span></span>
+<span id="cb26-28"><a href="#cb26-28" aria-hidden="true" tabindex="-1"></a>    src <span class="op">=</span> [<span class="fl">1</span>,<span class="fl">2</span>,<span class="fl">3</span>,<span class="fl">4</span>,<span class="fl">2</span>,<span class="fl">3</span>,<span class="fl">4</span>,<span class="fl">5</span>]</span>
+<span id="cb26-29"><a href="#cb26-29" aria-hidden="true" tabindex="-1"></a>    tgt <span class="op">=</span> [<span class="fl">2</span>,<span class="fl">3</span>,<span class="fl">4</span>,<span class="fl">5</span>,<span class="fl">1</span>,<span class="fl">2</span>,<span class="fl">3</span>,<span class="fl">4</span>]</span>
+<span id="cb26-30"><a href="#cb26-30" aria-hidden="true" tabindex="-1"></a><span class="cf">end</span></span>
+<span id="cb26-31"><a href="#cb26-31" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-32"><a href="#cb26-32" aria-hidden="true" tabindex="-1"></a>traj_net <span class="op">=</span> <span class="fu">run!</span>(abm_net, <span class="fu">deepcopy</span>(init_net); maxtime<span class="op">=</span><span class="fl">30.0</span>)</span>
+<span id="cb26-33"><a href="#cb26-33" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-34"><a href="#cb26-34" aria-hidden="true" tabindex="-1"></a><span class="fu">println</span>(<span class="st">"Distance-dependent transmission:"</span>)</span>
+<span id="cb26-35"><a href="#cb26-35" aria-hidden="true" tabindex="-1"></a><span class="fu">println</span>(<span class="st">"  Events: </span><span class="sc">$</span>(<span class="fu">length</span>(traj_net))<span class="st">"</span>)</span>
+<span id="cb26-36"><a href="#cb26-36" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> (i, (t, _, name, _)) <span class="kw">in</span> <span class="fu">enumerate</span>(traj_net.events)</span>
+<span id="cb26-37"><a href="#cb26-37" aria-hidden="true" tabindex="-1"></a>    i <span class="op">&gt;</span> <span class="fl">8</span> <span class="op">&amp;&amp;</span> <span class="cf">break</span></span>
+<span id="cb26-38"><a href="#cb26-38" aria-hidden="true" tabindex="-1"></a>    <span class="fu">println</span>(<span class="st">"  t=</span><span class="sc">$</span>(<span class="fu">round</span>(t, digits<span class="op">=</span><span class="fl">3</span>))<span class="st">: </span><span class="sc">$</span>name<span class="st">"</span>)</span>
+<span id="cb26-39"><a href="#cb26-39" aria-hidden="true" tabindex="-1"></a><span class="cf">end</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<div class="ansi-escaped-output">
+<pre><span class="ansi-cyan-fg ansi-bold">[ </span><span class="ansi-cyan-fg ansi-bold">Info: </span>Stochastic scheduling algorithm ran out of events
+Distance-dependent transmission:
+  Events: 8
+  t=0.511: NetInf
+  t=0.62: NetInf
+  t=0.626: NetInf
+  t=0.904: NetInf
+  t=0.981: NetInf
+  t=1.953: NetInf
+  t=4.159: NetInf
+  t=4.395: NetInf
+</pre>
+</div>
+</div>
+</div>
+<p>Adjacent edges (distance 1) fire faster than distant ones, naturally producing wave-like spatial spread.</p>
+</section>
+<section id="disconnected-components" class="level3" data-number="5.3">
+<h3 data-number="5.3" class="anchored" data-anchor-id="disconnected-components"><span class="header-section-number">5.3</span> Disconnected components</h3>
+<div id="30" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb27"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Two disconnected components</span></span>
+<span id="cb27-2"><a href="#cb27-2" aria-hidden="true" tabindex="-1"></a>disconnected <span class="op">=</span> <span class="pp">@acset</span> NetGraph <span class="cf">begin</span></span>
+<span id="cb27-3"><a href="#cb27-3" aria-hidden="true" tabindex="-1"></a>    V <span class="op">=</span> <span class="fl">4</span></span>
+<span id="cb27-4"><a href="#cb27-4" aria-hidden="true" tabindex="-1"></a>    E <span class="op">=</span> <span class="fl">2</span></span>
+<span id="cb27-5"><a href="#cb27-5" aria-hidden="true" tabindex="-1"></a>    src <span class="op">=</span> [<span class="fl">1</span>, <span class="fl">2</span>]</span>
+<span id="cb27-6"><a href="#cb27-6" aria-hidden="true" tabindex="-1"></a>    tgt <span class="op">=</span> [<span class="fl">2</span>, <span class="fl">1</span>]</span>
+<span id="cb27-7"><a href="#cb27-7" aria-hidden="true" tabindex="-1"></a><span class="cf">end</span></span>
+<span id="cb27-8"><a href="#cb27-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-9"><a href="#cb27-9" aria-hidden="true" tabindex="-1"></a>d12 <span class="op">=</span> <span class="fu">shortest_distance</span>(disconnected, <span class="fl">1</span>, <span class="fl">2</span>)</span>
+<span id="cb27-10"><a href="#cb27-10" aria-hidden="true" tabindex="-1"></a>d13 <span class="op">=</span> <span class="fu">shortest_distance</span>(disconnected, <span class="fl">1</span>, <span class="fl">3</span>)</span>
+<span id="cb27-11"><a href="#cb27-11" aria-hidden="true" tabindex="-1"></a><span class="fu">println</span>(<span class="st">"Connected pair: d(1,2) = </span><span class="sc">$</span>d12<span class="st">"</span>)</span>
+<span id="cb27-12"><a href="#cb27-12" aria-hidden="true" tabindex="-1"></a><span class="fu">println</span>(<span class="st">"Disconnected pair: d(1,3) = </span><span class="sc">$</span>(d13 <span class="op">==</span> <span class="fu">typemax</span>(<span class="dt">Int</span>) ? <span class="st">"∞ (unreachable)"</span> <span class="op">:</span> d13)<span class="st">"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Connected pair: d(1,2) = 1
+Disconnected pair: d(1,3) = ∞ (unreachable)</code></pre>
+</div>
+</div>
+</section>
+</section>
+<section id="summary" class="level2" data-number="6">
+<h2 data-number="6" class="anchored" data-anchor-id="summary"><span class="header-section-number">6</span> Summary</h2>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 32%">
+<col style="width: 32%">
+<col style="width: 35%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Feature</th>
+<th>Function</th>
+<th>Use Case</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>Network schemas</strong></td>
+<td><code>networkify(S)</code></td>
+<td>Add graph structure to any agent schema</td>
+</tr>
+<tr class="even">
+<td><strong>Position extraction</strong></td>
+<td><code>positions(state, ob, attrs)</code></td>
+<td>Get coordinate matrix for spatial agents</td>
+</tr>
+<tr class="odd">
+<td><strong>Neighbor search</strong></td>
+<td><code>within_radius(state, i, r, ob, attrs)</code></td>
+<td>Find nearby agents for local transmission</td>
+</tr>
+<tr class="even">
+<td><strong>Distance matrix</strong></td>
+<td><code>pairwise_distances(state, ob, attrs)</code></td>
+<td>Full spatial distance computation</td>
+</tr>
+<tr class="odd">
+<td><strong>Graph distance</strong></td>
+<td><code>shortest_distance(state, u, v)</code></td>
+<td>BFS distance on network topology</td>
+</tr>
+</tbody>
+</table>
+<p>These tools enable models where <strong>space matters</strong>: disease spreads along network edges, transmission probability decays with distance, and interventions can target spatial clusters.</p>
+</section>
+
+</main>
+<!-- /main column -->
+<script id="quarto-html-after-body" type="application/javascript">
+  window.document.addEventListener("DOMContentLoaded", function (event) {
+    const icon = "";
+    const anchorJS = new window.AnchorJS();
+    anchorJS.options = {
+      placement: 'right',
+      icon: icon
+    };
+    anchorJS.add('.anchored');
+    const isCodeAnnotation = (el) => {
+      for (const clz of el.classList) {
+        if (clz.startsWith('code-annotation-')) {                     
+          return true;
+        }
+      }
+      return false;
+    }
+    const onCopySuccess = function(e) {
+      // button target
+      const button = e.trigger;
+      // don't keep focus
+      button.blur();
+      // flash "checked"
+      button.classList.add('code-copy-button-checked');
+      var currentTitle = button.getAttribute("title");
+      button.setAttribute("title", "Copied!");
+      let tooltip;
+      if (window.bootstrap) {
+        button.setAttribute("data-bs-toggle", "tooltip");
+        button.setAttribute("data-bs-placement", "left");
+        button.setAttribute("data-bs-title", "Copied!");
+        tooltip = new bootstrap.Tooltip(button, 
+          { trigger: "manual", 
+            customClass: "code-copy-button-tooltip",
+            offset: [0, -8]});
+        tooltip.show();    
+      }
+      setTimeout(function() {
+        if (tooltip) {
+          tooltip.hide();
+          button.removeAttribute("data-bs-title");
+          button.removeAttribute("data-bs-toggle");
+          button.removeAttribute("data-bs-placement");
+        }
+        button.setAttribute("title", currentTitle);
+        button.classList.remove('code-copy-button-checked');
+      }, 1000);
+      // clear code selection
+      e.clearSelection();
+    }
+    const getTextToCopy = function(trigger) {
+      const outerScaffold = trigger.parentElement.cloneNode(true);
+      const codeEl = outerScaffold.querySelector('code');
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+    }
+    const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+      text: getTextToCopy
+    });
+    clipboard.on('success', onCopySuccess);
+    if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+      const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+        text: getTextToCopy,
+        container: window.document.getElementById('quarto-embedded-source-code-modal')
+      });
+      clipboardModal.on('success', onCopySuccess);
+    }
+      var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+      var mailtoRegex = new RegExp(/^mailto:/);
+        var filterRegex = new RegExp('/' + window.location.host + '/');
+      var isInternal = (href) => {
+          return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+      }
+      // Inspect non-navigation links and adorn them if external
+     var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+      for (var i=0; i<links.length; i++) {
+        const link = links[i];
+        if (!isInternal(link.href)) {
+          // undo the damage that might have been done by quarto-nav.js in the case of
+          // links that we want to consider external
+          if (link.dataset.originalHref !== undefined) {
+            link.href = link.dataset.originalHref;
+          }
+        }
+      }
+    function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+      const config = {
+        allowHTML: true,
+        maxWidth: 500,
+        delay: 100,
+        arrow: false,
+        appendTo: function(el) {
+            return el.parentElement;
+        },
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'quarto',
+        placement: 'bottom-start',
+      };
+      if (contentFn) {
+        config.content = contentFn;
+      }
+      if (onTriggerFn) {
+        config.onTrigger = onTriggerFn;
+      }
+      if (onUntriggerFn) {
+        config.onUntrigger = onUntriggerFn;
+      }
+      window.tippy(el, config); 
+    }
+    const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+    for (var i=0; i<noterefs.length; i++) {
+      const ref = noterefs[i];
+      tippyHover(ref, function() {
+        // use id or data attribute instead here
+        let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+        try { href = new URL(href).hash; } catch {}
+        const id = href.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note) {
+          return note.innerHTML;
+        } else {
+          return "";
+        }
+      });
+    }
+    const xrefs = window.document.querySelectorAll('a.quarto-xref');
+    const processXRef = (id, note) => {
+      // Strip column container classes
+      const stripColumnClz = (el) => {
+        el.classList.remove("page-full", "page-columns");
+        if (el.children) {
+          for (const child of el.children) {
+            stripColumnClz(child);
+          }
+        }
+      }
+      stripColumnClz(note)
+      if (id === null || id.startsWith('sec-')) {
+        // Special case sections, only their first couple elements
+        const container = document.createElement("div");
+        if (note.children && note.children.length > 2) {
+          container.appendChild(note.children[0].cloneNode(true));
+          for (let i = 1; i < note.children.length; i++) {
+            const child = note.children[i];
+            if (child.tagName === "P" && child.innerText === "") {
+              continue;
+            } else {
+              container.appendChild(child.cloneNode(true));
+              break;
+            }
+          }
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(container);
+          }
+          return container.innerHTML
+        } else {
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(note);
+          }
+          return note.innerHTML;
+        }
+      } else {
+        // Remove any anchor links if they are present
+        const anchorLink = note.querySelector('a.anchorjs-link');
+        if (anchorLink) {
+          anchorLink.remove();
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        if (note.classList.contains("callout")) {
+          return note.outerHTML;
+        } else {
+          return note.innerHTML;
+        }
+      }
+    }
+    for (var i=0; i<xrefs.length; i++) {
+      const xref = xrefs[i];
+      tippyHover(xref, undefined, function(instance) {
+        instance.disable();
+        let url = xref.getAttribute('href');
+        let hash = undefined; 
+        if (url.startsWith('#')) {
+          hash = url;
+        } else {
+          try { hash = new URL(url).hash; } catch {}
+        }
+        if (hash) {
+          const id = hash.replace(/^#\/?/, "");
+          const note = window.document.getElementById(id);
+          if (note !== null) {
+            try {
+              const html = processXRef(id, note.cloneNode(true));
+              instance.setContent(html);
+            } finally {
+              instance.enable();
+              instance.show();
+            }
+          } else {
+            // See if we can fetch this
+            fetch(url.split('#')[0])
+            .then(res => res.text())
+            .then(html => {
+              const parser = new DOMParser();
+              const htmlDoc = parser.parseFromString(html, "text/html");
+              const note = htmlDoc.getElementById(id);
+              if (note !== null) {
+                const html = processXRef(id, note);
+                instance.setContent(html);
+              } 
+            }).finally(() => {
+              instance.enable();
+              instance.show();
+            });
+          }
+        } else {
+          // See if we can fetch a full url (with no hash to target)
+          // This is a special case and we should probably do some content thinning / targeting
+          fetch(url)
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.querySelector('main.content');
+            if (note !== null) {
+              // This should only happen for chapter cross references
+              // (since there is no id in the URL)
+              // remove the first header
+              if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+                note.children[0].remove();
+              }
+              const html = processXRef(null, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      }, function(instance) {
+      });
+    }
+        let selectedAnnoteEl;
+        const selectorForAnnotation = ( cell, annotation) => {
+          let cellAttr = 'data-code-cell="' + cell + '"';
+          let lineAttr = 'data-code-annotation="' +  annotation + '"';
+          const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+          return selector;
+        }
+        const selectCodeLines = (annoteEl) => {
+          const doc = window.document;
+          const targetCell = annoteEl.getAttribute("data-target-cell");
+          const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+          const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+          const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+          const lineIds = lines.map((line) => {
+            return targetCell + "-" + line;
+          })
+          let top = null;
+          let height = null;
+          let parent = null;
+          if (lineIds.length > 0) {
+              //compute the position of the single el (top and bottom and make a div)
+              const el = window.document.getElementById(lineIds[0]);
+              top = el.offsetTop;
+              height = el.offsetHeight;
+              parent = el.parentElement.parentElement;
+            if (lineIds.length > 1) {
+              const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+              const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+              height = bottom - top;
+            }
+            if (top !== null && height !== null && parent !== null) {
+              // cook up a div (if necessary) and position it 
+              let div = window.document.getElementById("code-annotation-line-highlight");
+              if (div === null) {
+                div = window.document.createElement("div");
+                div.setAttribute("id", "code-annotation-line-highlight");
+                div.style.position = 'absolute';
+                parent.appendChild(div);
+              }
+              div.style.top = top - 2 + "px";
+              div.style.height = height + 4 + "px";
+              div.style.left = 0;
+              let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+              if (gutterDiv === null) {
+                gutterDiv = window.document.createElement("div");
+                gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+                gutterDiv.style.position = 'absolute';
+                const codeCell = window.document.getElementById(targetCell);
+                const gutter = codeCell.querySelector('.code-annotation-gutter');
+                gutter.appendChild(gutterDiv);
+              }
+              gutterDiv.style.top = top - 2 + "px";
+              gutterDiv.style.height = height + 4 + "px";
+            }
+            selectedAnnoteEl = annoteEl;
+          }
+        };
+        const unselectCodeLines = () => {
+          const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+          elementsIds.forEach((elId) => {
+            const div = window.document.getElementById(elId);
+            if (div) {
+              div.remove();
+            }
+          });
+          selectedAnnoteEl = undefined;
+        };
+          // Handle positioning of the toggle
+      window.addEventListener(
+        "resize",
+        throttle(() => {
+          elRect = undefined;
+          if (selectedAnnoteEl) {
+            selectCodeLines(selectedAnnoteEl);
+          }
+        }, 10)
+      );
+      function throttle(fn, ms) {
+      let throttle = false;
+      let timer;
+        return (...args) => {
+          if(!throttle) { // first call gets through
+              fn.apply(this, args);
+              throttle = true;
+          } else { // all the others get throttled
+              if(timer) clearTimeout(timer); // cancel #2
+              timer = setTimeout(() => {
+                fn.apply(this, args);
+                timer = throttle = false;
+              }, ms);
+          }
+        };
+      }
+        // Attach click handler to the DT
+        const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+        for (const annoteDlNode of annoteDls) {
+          annoteDlNode.addEventListener('click', (event) => {
+            const clickedEl = event.target;
+            if (clickedEl !== selectedAnnoteEl) {
+              unselectCodeLines();
+              const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+              if (activeEl) {
+                activeEl.classList.remove('code-annotation-active');
+              }
+              selectCodeLines(clickedEl);
+              clickedEl.classList.add('code-annotation-active');
+            } else {
+              // Unselect the line
+              unselectCodeLines();
+              clickedEl.classList.remove('code-annotation-active');
+            }
+          });
+        }
+    const findCites = (el) => {
+      const parentEl = el.parentElement;
+      if (parentEl) {
+        const cites = parentEl.dataset.cites;
+        if (cites) {
+          return {
+            el,
+            cites: cites.split(' ')
+          };
+        } else {
+          return findCites(el.parentElement)
+        }
+      } else {
+        return undefined;
+      }
+    };
+    var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+    for (var i=0; i<bibliorefs.length; i++) {
+      const ref = bibliorefs[i];
+      const citeInfo = findCites(ref);
+      if (citeInfo) {
+        tippyHover(citeInfo.el, function() {
+          var popup = window.document.createElement('div');
+          citeInfo.cites.forEach(function(cite) {
+            var citeDiv = window.document.createElement('div');
+            citeDiv.classList.add('hanging-indent');
+            citeDiv.classList.add('csl-entry');
+            var biblioDiv = window.document.getElementById('ref-' + cite);
+            if (biblioDiv) {
+              citeDiv.innerHTML = biblioDiv.innerHTML;
+            }
+            popup.appendChild(citeDiv);
+          });
+          return popup.innerHTML;
+        });
+      }
+    }
+  });
+  </script>
+</div> <!-- /content -->
+
+
+
+
+</body></html>

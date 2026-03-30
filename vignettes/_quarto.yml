@@ -1,0 +1,31 @@
+project:
+  type: default
+  output-dir: _output
+
+format:
+  html:
+    code-fold: false
+    toc: true
+    theme: cosmo
+    number-sections: true
+    highlight-style: github
+  pdf:
+    documentclass: article
+    geometry:
+      - margin=1in
+    number-sections: true
+    colorlinks: true
+    highlight-style: github
+  gfm:
+    toc: true
+    number-sections: true
+
+engine: julia
+
+execute:
+  freeze: auto
+  daemon: true
+  daemon-restart: false
+
+metadata-files:
+  - _metadata.yml

@@ -1,0 +1,975 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.9.28">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+<meta name="author" content="Simon Frost">
+<meta name="dcterms.date" content="2026-03-29">
+
+<title>Timers and Hazard Rates</title>
+<style>
+/* Default styles provided by pandoc.
+** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+*/
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="02_timers_files/libs/clipboard/clipboard.min.js"></script>
+<script src="02_timers_files/libs/quarto-html/quarto.js" type="module"></script>
+<script src="02_timers_files/libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="02_timers_files/libs/quarto-html/popper.min.js"></script>
+<script src="02_timers_files/libs/quarto-html/tippy.umd.min.js"></script>
+<script src="02_timers_files/libs/quarto-html/anchor.min.js"></script>
+<link href="02_timers_files/libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="02_timers_files/libs/quarto-html/quarto-syntax-highlighting-1d541e707deb911ee702dcbe28eecf08.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="02_timers_files/libs/bootstrap/bootstrap.min.js"></script>
+<link href="02_timers_files/libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="02_timers_files/libs/bootstrap/bootstrap-f93d581b41f20e53031fef139986cb6a.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+
+
+</head>
+
+<body class="quarto-light">
+
+<div id="quarto-content" class="page-columns page-rows-contents page-layout-article">
+<div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+  <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">Table of contents</h2>
+   
+  <ul>
+  <li><a href="#overview" id="toc-overview" class="nav-link active" data-scroll-target="#overview"><span class="header-section-number">1</span> Overview</a></li>
+  <li><a href="#setup" id="toc-setup" class="nav-link" data-scroll-target="#setup"><span class="header-section-number">2</span> Setup</a></li>
+  <li><a href="#helper-a-reusable-edge-removal-rule" id="toc-helper-a-reusable-edge-removal-rule" class="nav-link" data-scroll-target="#helper-a-reusable-edge-removal-rule"><span class="header-section-number">3</span> Helper: a reusable edge-removal rule</a></li>
+  <li><a href="#discretehazard-fixed-waiting-time" id="toc-discretehazard-fixed-waiting-time" class="nav-link" data-scroll-target="#discretehazard-fixed-waiting-time"><span class="header-section-number">4</span> 1. <code>DiscreteHazard</code> — Fixed Waiting Time</a></li>
+  <li><a href="#continuoushazard-constant-exponential-rate" id="toc-continuoushazard-constant-exponential-rate" class="nav-link" data-scroll-target="#continuoushazard-constant-exponential-rate"><span class="header-section-number">5</span> 2. <code>ContinuousHazard</code> — Constant Exponential Rate</a></li>
+  <li><a href="#closuretime-time-varying-hazard" id="toc-closuretime-time-varying-hazard" class="nav-link" data-scroll-target="#closuretime-time-varying-hazard"><span class="header-section-number">6</span> 3. <code>ClosureTime</code> — Time-Varying Hazard</a></li>
+  <li><a href="#closurestate-state-dependent-hazard" id="toc-closurestate-state-dependent-hazard" class="nav-link" data-scroll-target="#closurestate-state-dependent-hazard"><span class="header-section-number">7</span> 4. <code>ClosureState</code> — State-Dependent Hazard</a></li>
+  <li><a href="#closureparams-parameter-dependent-hazard" id="toc-closureparams-parameter-dependent-hazard" class="nav-link" data-scroll-target="#closureparams-parameter-dependent-hazard"><span class="header-section-number">8</span> 5. <code>ClosureParams</code> — Parameter-Dependent Hazard</a></li>
+  <li><a href="#fullclosure-time-state-dependent" id="toc-fullclosure-time-state-dependent" class="nav-link" data-scroll-target="#fullclosure-time-state-dependent"><span class="header-section-number">9</span> 6. <code>FullClosure</code> — Time + State Dependent</a></li>
+  <li><a href="#fullclosureparams-time-state-params" id="toc-fullclosureparams-time-state-params" class="nav-link" data-scroll-target="#fullclosureparams-time-state-params"><span class="header-section-number">10</span> 7. <code>FullClosureParams</code> — Time + State + Params</a></li>
+  <li><a href="#closurehistory-history-sensitive-hazard" id="toc-closurehistory-history-sensitive-hazard" class="nav-link" data-scroll-target="#closurehistory-history-sensitive-hazard"><span class="header-section-number">11</span> 8. <code>ClosureHistory</code> — History-Sensitive Hazard</a></li>
+  <li><a href="#summary" id="toc-summary" class="nav-link" data-scroll-target="#summary"><span class="header-section-number">12</span> Summary</a></li>
+  </ul>
+<div class="quarto-alternate-formats"><h2>Other Formats</h2><ul><li><a href="02_timers.pdf"><i class="bi bi-file-pdf"></i>PDF</a></li><li><a href="02_timers.md"><i class="bi bi-file-code"></i>Github (GFM)</a></li></ul></div></nav>
+</div>
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">Timers and Hazard Rates</h1>
+<p class="subtitle lead">Controlling when events fire in AlgebraicABMs.jl</p>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    <div>
+    <div class="quarto-title-meta-heading">Author</div>
+    <div class="quarto-title-meta-contents">
+             <p>Simon Frost </p>
+          </div>
+  </div>
+    
+    <div>
+    <div class="quarto-title-meta-heading">Published</div>
+    <div class="quarto-title-meta-contents">
+      <p class="date">March 29, 2026</p>
+    </div>
+  </div>
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<section id="overview" class="level2" data-number="1">
+<h2 data-number="1" class="anchored" data-anchor-id="overview"><span class="header-section-number">1</span> Overview</h2>
+<p>In AlgebraicABMs.jl, <strong>timers</strong> determine <em>when</em> rewrite rules fire. Each <code>ABMRule</code> pairs a rewriting rule with a timer that produces a hazard rate or waiting-time distribution. The framework supports eight timer types, ranging from simple constant rates to history-dependent closures.</p>
+<p>This vignette demonstrates every timer type using small epidemiological models built on the <code>Graph</code> schema.</p>
+</section>
+<section id="setup" class="level2" data-number="2">
+<h2 data-number="2" class="anchored" data-anchor-id="setup"><span class="header-section-number">2</span> Setup</h2>
+<div id="2" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">using</span> <span class="bu">AlgebraicABMs</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">using</span> <span class="bu">Catlab</span>, <span class="bu">AlgebraicRewriting</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">using</span> <span class="bu">Distributions</span>: Exponential</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="im">using</span> <span class="bu">Random</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="bu">Random</span>.<span class="fu">seed!</span>(<span class="fl">42</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display" data-execution_count="1">
+<pre><code>TaskLocalRNG()</code></pre>
+</div>
+</div>
+</section>
+<section id="helper-a-reusable-edge-removal-rule" class="level2" data-number="3">
+<h2 data-number="3" class="anchored" data-anchor-id="helper-a-reusable-edge-removal-rule"><span class="header-section-number">3</span> Helper: a reusable edge-removal rule</h2>
+<p>We define a minimal “infection” rule that removes an edge from a graph (representing consumption of a contact), and a “recovery” rule that removes a vertex. These will be reused with different timers throughout.</p>
+<div id="4" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Infection: remove an edge (S-I contact consumed)</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>L_inf <span class="op">=</span> <span class="pp">@acset</span> Graph <span class="cf">begin</span> V<span class="op">=</span><span class="fl">2</span>; E<span class="op">=</span><span class="fl">1</span>; src<span class="op">=</span>[<span class="fl">1</span>]; tgt<span class="op">=</span>[<span class="fl">2</span>] <span class="cf">end</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>I_inf <span class="op">=</span> <span class="fu">Graph</span>(<span class="fl">2</span>)</span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>R_inf <span class="op">=</span> <span class="fu">Graph</span>(<span class="fl">2</span>)</span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>inf_rule <span class="op">=</span> <span class="fu">Rule</span>(</span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>    <span class="fu">homomorphism</span>(I_inf, L_inf; initial<span class="op">=</span>(V<span class="op">=</span>[<span class="fl">1</span>,<span class="fl">2</span>],)),</span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>    <span class="fu">homomorphism</span>(I_inf, R_inf; initial<span class="op">=</span>(V<span class="op">=</span>[<span class="fl">1</span>,<span class="fl">2</span>],)))</span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a><span class="co"># Recovery: remove a vertex</span></span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a>L_rec <span class="op">=</span> <span class="fu">Graph</span>(<span class="fl">1</span>)</span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a>I_rec <span class="op">=</span> <span class="fu">Graph</span>(<span class="fl">0</span>)</span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a>R_rec <span class="op">=</span> <span class="fu">Graph</span>(<span class="fl">0</span>)</span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a>rec_rule <span class="op">=</span> <span class="fu">Rule</span>(<span class="fu">homomorphism</span>(I_rec, L_rec), <span class="fu">id</span>(I_rec))</span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a><span class="co"># Small initial state: 6 vertices, 10 directed edges</span></span>
+<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a>init <span class="op">=</span> <span class="pp">@acset</span> Graph <span class="cf">begin</span></span>
+<span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a>    V <span class="op">=</span> <span class="fl">6</span></span>
+<span id="cb3-18"><a href="#cb3-18" aria-hidden="true" tabindex="-1"></a>    E <span class="op">=</span> <span class="fl">10</span></span>
+<span id="cb3-19"><a href="#cb3-19" aria-hidden="true" tabindex="-1"></a>    src <span class="op">=</span> [<span class="fl">1</span>,<span class="fl">1</span>,<span class="fl">2</span>,<span class="fl">2</span>,<span class="fl">3</span>,<span class="fl">3</span>,<span class="fl">4</span>,<span class="fl">4</span>,<span class="fl">5</span>,<span class="fl">6</span>]</span>
+<span id="cb3-20"><a href="#cb3-20" aria-hidden="true" tabindex="-1"></a>    tgt <span class="op">=</span> [<span class="fl">2</span>,<span class="fl">3</span>,<span class="fl">3</span>,<span class="fl">4</span>,<span class="fl">5</span>,<span class="fl">6</span>,<span class="fl">5</span>,<span class="fl">6</span>,<span class="fl">6</span>,<span class="fl">1</span>]</span>
+<span id="cb3-21"><a href="#cb3-21" aria-hidden="true" tabindex="-1"></a><span class="cf">end</span></span>
+<span id="cb3-22"><a href="#cb3-22" aria-hidden="true" tabindex="-1"></a><span class="fu">println</span>(<span class="st">"Initial state: </span><span class="sc">$</span>(<span class="fu">nparts</span>(init, <span class="op">:</span>V))<span class="st"> vertices, </span><span class="sc">$</span>(<span class="fu">nparts</span>(init, <span class="op">:</span>E))<span class="st"> edges"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Initial state: 6 vertices, 10 edges</code></pre>
+</div>
+</div>
+</section>
+<section id="discretehazard-fixed-waiting-time" class="level2" data-number="4">
+<h2 data-number="4" class="anchored" data-anchor-id="discretehazard-fixed-waiting-time"><span class="header-section-number">4</span> 1. <code>DiscreteHazard</code> — Fixed Waiting Time</h2>
+<p>A <code>DiscreteHazard</code> fires at an exact time offset from when it is enabled. Passing a number wraps it in a <code>Dirac</code> distribution.</p>
+<p><strong>Epidemiological interpretation</strong>: A fixed incubation period — every exposed individual becomes infectious after exactly 5 time units.</p>
+<div id="6" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Fixed incubation: edge removed at exactly t=5 from enablement</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>infection_discrete <span class="op">=</span> <span class="fu">ABMRule</span>(<span class="op">:</span>InfDiscrete, inf_rule, <span class="fu">DiscreteHazard</span>(<span class="fl">5.0</span>))</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>abm_disc <span class="op">=</span> <span class="fu">ABM</span>([infection_discrete])</span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>traj_disc <span class="op">=</span> <span class="fu">run!</span>(abm_disc, <span class="fu">deepcopy</span>(init); maxtime<span class="op">=</span><span class="fl">30.0</span>)</span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a><span class="fu">println</span>(<span class="st">"DiscreteHazard events: </span><span class="sc">$</span>(<span class="fu">length</span>(traj_disc))<span class="st">"</span>)</span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> (i, (t, _, name, _)) <span class="kw">in</span> <span class="fu">enumerate</span>(traj_disc.events)</span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>    i <span class="op">&gt;</span> <span class="fl">8</span> <span class="op">&amp;&amp;</span> <span class="cf">break</span></span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a>    <span class="fu">println</span>(<span class="st">"  t=</span><span class="sc">$</span>(<span class="fu">round</span>(t, digits<span class="op">=</span><span class="fl">2</span>))<span class="st">: </span><span class="sc">$</span>name<span class="st">"</span>)</span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a><span class="cf">end</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<div class="ansi-escaped-output">
+<pre><span class="ansi-cyan-fg ansi-bold">[ </span><span class="ansi-cyan-fg ansi-bold">Info: </span>Stochastic scheduling algorithm ran out of events
+DiscreteHazard events: 10
+  t=5.0: InfDiscrete
+  t=5.0: InfDiscrete
+  t=5.0: InfDiscrete
+  t=5.0: InfDiscrete
+  t=5.0: InfDiscrete
+  t=5.0: InfDiscrete
+  t=5.0: InfDiscrete
+  t=5.0: InfDiscrete
+</pre>
+</div>
+</div>
+</div>
+<p>All events fire at multiples of 5.0 because each match is enabled at time 0 and fires exactly 5 units later. Subsequent matches enabled after a rewrite also wait exactly 5 units.</p>
+</section>
+<section id="continuoushazard-constant-exponential-rate" class="level2" data-number="5">
+<h2 data-number="5" class="anchored" data-anchor-id="continuoushazard-constant-exponential-rate"><span class="header-section-number">5</span> 2. <code>ContinuousHazard</code> — Constant Exponential Rate</h2>
+<p><code>ContinuousHazard</code> wraps a continuous distribution (typically <code>Exponential</code>). Passing a number <code>p</code> constructs <code>Exponential(p)</code> (mean waiting time <code>p</code>).</p>
+<p><strong>Epidemiological interpretation</strong>: Constant-rate infection — each contact transmits independently at rate 1/0.3 per unit time (mean 0.3).</p>
+<div id="8" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>infection_cont <span class="op">=</span> <span class="fu">ABMRule</span>(<span class="op">:</span>InfCont, inf_rule, <span class="fu">ContinuousHazard</span>(<span class="fl">0.3</span>))</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>recovery_cont <span class="op">=</span> <span class="fu">ABMRule</span>(<span class="op">:</span>RecCont, rec_rule, <span class="fu">ContinuousHazard</span>(<span class="fu">Exponential</span>(<span class="fl">5.0</span>)))</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>abm_cont <span class="op">=</span> <span class="fu">ABM</span>([infection_cont, recovery_cont])</span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>traj_cont <span class="op">=</span> <span class="fu">run!</span>(abm_cont, <span class="fu">deepcopy</span>(init); maxtime<span class="op">=</span><span class="fl">15.0</span>)</span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a><span class="fu">println</span>(<span class="st">"ContinuousHazard events: </span><span class="sc">$</span>(<span class="fu">length</span>(traj_cont))<span class="st">"</span>)</span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> (i, (t, _, name, _)) <span class="kw">in</span> <span class="fu">enumerate</span>(traj_cont.events)</span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a>    i <span class="op">&gt;</span> <span class="fl">10</span> <span class="op">&amp;&amp;</span> <span class="cf">break</span></span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a>    <span class="fu">println</span>(<span class="st">"  t=</span><span class="sc">$</span>(<span class="fu">round</span>(t, digits<span class="op">=</span><span class="fl">3</span>))<span class="st">: </span><span class="sc">$</span>name<span class="st">"</span>)</span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a><span class="cf">end</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<div class="ansi-escaped-output">
+<pre><span class="ansi-cyan-fg ansi-bold">[ </span><span class="ansi-cyan-fg ansi-bold">Info: </span>Stochastic scheduling algorithm ran out of events
+ContinuousHazard events: 10
+  t=0.012: InfCont
+  t=0.024: InfCont
+  t=0.029: InfCont
+  t=0.081: InfCont
+  t=0.108: InfCont
+  t=0.157: InfCont
+  t=0.237: InfCont
+  t=0.287: InfCont
+  t=0.494: InfCont
+  t=0.565: InfCont
+</pre>
+</div>
+</div>
+</div>
+<p>Events are irregularly spaced — each follows an exponential waiting time. This is the classic Gillespie-style stochastic simulation.</p>
+</section>
+<section id="closuretime-time-varying-hazard" class="level2" data-number="6">
+<h2 data-number="6" class="anchored" data-anchor-id="closuretime-time-varying-hazard"><span class="header-section-number">6</span> 3. <code>ClosureTime</code> — Time-Varying Hazard</h2>
+<p><code>ClosureTime</code> takes a function <code>clocktime → hazard_rate</code> (returning a distribution). The rate can depend on the absolute simulation clock but <strong>not</strong> on the state.</p>
+<p><strong>Epidemiological interpretation</strong>: Seasonal forcing — transmission peaks in winter (modeled as a sinusoidal rate).</p>
+<div id="10" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Seasonal rate: peaks at t=0,10,20,... (period 10)</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>seasonal_timer <span class="op">=</span> <span class="fu">ClosureTime</span>(t <span class="op">-&gt;</span> <span class="fu">Exponential</span>(<span class="fl">0.5</span> <span class="op">+</span> <span class="fl">0.4</span> <span class="op">*</span> <span class="fu">cos</span>(<span class="fl">2</span>π <span class="op">*</span> t <span class="op">/</span> <span class="fl">10.0</span>)))</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>infection_seasonal <span class="op">=</span> <span class="fu">ABMRule</span>(<span class="op">:</span>InfSeasonal, inf_rule, seasonal_timer)</span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>abm_season <span class="op">=</span> <span class="fu">ABM</span>([infection_seasonal])</span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>traj_season <span class="op">=</span> <span class="fu">run!</span>(abm_season, <span class="fu">deepcopy</span>(init); maxtime<span class="op">=</span><span class="fl">20.0</span>)</span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a><span class="fu">println</span>(<span class="st">"ClosureTime (seasonal) events: </span><span class="sc">$</span>(<span class="fu">length</span>(traj_season))<span class="st">"</span>)</span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> (i, (t, _, name, _)) <span class="kw">in</span> <span class="fu">enumerate</span>(traj_season.events)</span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a>    i <span class="op">&gt;</span> <span class="fl">8</span> <span class="op">&amp;&amp;</span> <span class="cf">break</span></span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a>    <span class="fu">println</span>(<span class="st">"  t=</span><span class="sc">$</span>(<span class="fu">round</span>(t, digits<span class="op">=</span><span class="fl">3</span>))<span class="st">: </span><span class="sc">$</span>name<span class="st">"</span>)</span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a><span class="cf">end</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<div class="ansi-escaped-output">
+<pre><span class="ansi-cyan-fg ansi-bold">[ </span><span class="ansi-cyan-fg ansi-bold">Info: </span>Stochastic scheduling algorithm ran out of events
+ClosureTime (seasonal) events: 10
+  t=0.087: InfSeasonal
+  t=0.116: InfSeasonal
+  t=0.28: InfSeasonal
+  t=0.311: InfSeasonal
+  t=0.358: InfSeasonal
+  t=0.639: InfSeasonal
+  t=1.138: InfSeasonal
+  t=1.541: InfSeasonal
+</pre>
+</div>
+</div>
+</div>
+<p>The rate oscillates, so events cluster around times when the hazard rate is highest.</p>
+</section>
+<section id="closurestate-state-dependent-hazard" class="level2" data-number="7">
+<h2 data-number="7" class="anchored" data-anchor-id="closurestate-state-dependent-hazard"><span class="header-section-number">7</span> 4. <code>ClosureState</code> — State-Dependent Hazard</h2>
+<p><code>ClosureState</code> takes a function <code>match_morphism → distribution</code>. The rate depends on the current match (and through it, the full state) but <strong>not</strong> on clock time.</p>
+<p><strong>Epidemiological interpretation</strong>: Density-dependent transmission — the infection rate for a given contact is proportional to the total number of edges (more contacts → faster spread).</p>
+<div id="12" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb8"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Rate proportional to total edge count</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>density_timer <span class="op">=</span> <span class="fu">ClosureState</span>(m <span class="op">-&gt;</span> <span class="cf">begin</span></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>    state <span class="op">=</span> <span class="fu">codom</span>(m)</span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>    n_edges <span class="op">=</span> <span class="fu">nparts</span>(state, <span class="op">:</span>E)</span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>    <span class="fu">Exponential</span>(<span class="fu">max</span>(<span class="fl">0.1</span>, <span class="fl">10.0</span> <span class="op">/</span> n_edges))</span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a><span class="cf">end</span>)</span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>infection_density <span class="op">=</span> <span class="fu">ABMRule</span>(<span class="op">:</span>InfDensity, inf_rule, density_timer)</span>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a>abm_density <span class="op">=</span> <span class="fu">ABM</span>([infection_density])</span>
+<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a>traj_density <span class="op">=</span> <span class="fu">run!</span>(abm_density, <span class="fu">deepcopy</span>(init); maxtime<span class="op">=</span><span class="fl">20.0</span>)</span>
+<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a><span class="fu">println</span>(<span class="st">"ClosureState (density) events: </span><span class="sc">$</span>(<span class="fu">length</span>(traj_density))<span class="st">"</span>)</span>
+<span id="cb8-13"><a href="#cb8-13" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> (i, (t, _, name, _)) <span class="kw">in</span> <span class="fu">enumerate</span>(traj_density.events)</span>
+<span id="cb8-14"><a href="#cb8-14" aria-hidden="true" tabindex="-1"></a>    i <span class="op">&gt;</span> <span class="fl">8</span> <span class="op">&amp;&amp;</span> <span class="cf">break</span></span>
+<span id="cb8-15"><a href="#cb8-15" aria-hidden="true" tabindex="-1"></a>    <span class="fu">println</span>(<span class="st">"  t=</span><span class="sc">$</span>(<span class="fu">round</span>(t, digits<span class="op">=</span><span class="fl">3</span>))<span class="st">: </span><span class="sc">$</span>name<span class="st">"</span>)</span>
+<span id="cb8-16"><a href="#cb8-16" aria-hidden="true" tabindex="-1"></a><span class="cf">end</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<div class="ansi-escaped-output">
+<pre><span class="ansi-cyan-fg ansi-bold">[ </span><span class="ansi-cyan-fg ansi-bold">Info: </span>Stochastic scheduling algorithm ran out of events
+ClosureState (density) events: 10
+  t=0.047: InfDensity
+  t=0.083: InfDensity
+  t=0.139: InfDensity
+  t=0.208: InfDensity
+  t=0.229: InfDensity
+  t=0.342: InfDensity
+  t=0.549: InfDensity
+  t=0.931: InfDensity
+</pre>
+</div>
+</div>
+</div>
+<p>As edges are removed, the remaining edges have a higher mean waiting time (slower rate), creating a decelerating epidemic.</p>
+</section>
+<section id="closureparams-parameter-dependent-hazard" class="level2" data-number="8">
+<h2 data-number="8" class="anchored" data-anchor-id="closureparams-parameter-dependent-hazard"><span class="header-section-number">8</span> 5. <code>ClosureParams</code> — Parameter-Dependent Hazard</h2>
+<p><code>ClosureParams</code> takes a function <code>(match_morphism, params) → distribution</code>. The <code>params</code> come from <code>ABM(...; params=...)</code> and allow external parameter sweeps without redefining rules.</p>
+<p><strong>Epidemiological interpretation</strong>: Transmission rate set by an external parameter (e.g., from calibration or scenario analysis).</p>
+<div id="14" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb9"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a>param_timer <span class="op">=</span> <span class="fu">ClosureParams</span>((m, params) <span class="op">-&gt;</span> <span class="fu">Exponential</span>(params.beta))</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>infection_param <span class="op">=</span> <span class="fu">ABMRule</span>(<span class="op">:</span>InfParam, inf_rule, param_timer)</span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>abm_param <span class="op">=</span> <span class="fu">ABM</span>([infection_param]; params<span class="op">=</span>(beta<span class="op">=</span><span class="fl">0.5</span>,))</span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>traj_param <span class="op">=</span> <span class="fu">run!</span>(abm_param, <span class="fu">deepcopy</span>(init); maxtime<span class="op">=</span><span class="fl">15.0</span>)</span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a><span class="fu">println</span>(<span class="st">"ClosureParams (β=0.5) events: </span><span class="sc">$</span>(<span class="fu">length</span>(traj_param))<span class="st">"</span>)</span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> (i, (t, _, name, _)) <span class="kw">in</span> <span class="fu">enumerate</span>(traj_param.events)</span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a>    i <span class="op">&gt;</span> <span class="fl">6</span> <span class="op">&amp;&amp;</span> <span class="cf">break</span></span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a>    <span class="fu">println</span>(<span class="st">"  t=</span><span class="sc">$</span>(<span class="fu">round</span>(t, digits<span class="op">=</span><span class="fl">3</span>))<span class="st">: </span><span class="sc">$</span>name<span class="st">"</span>)</span>
+<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a><span class="cf">end</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<div class="ansi-escaped-output">
+<pre><span class="ansi-cyan-fg ansi-bold">[ </span><span class="ansi-cyan-fg ansi-bold">Info: </span>Stochastic scheduling algorithm ran out of events
+ClosureParams (β=0.5) events: 10
+  t=0.007: InfParam
+  t=0.031: InfParam
+  t=0.058: InfParam
+  t=0.17: InfParam
+  t=0.269: InfParam
+  t=0.278: InfParam
+</pre>
+</div>
+</div>
+</div>
+<p>The same rule can be reused with different <code>params</code> via <code>run_scenarios</code>.</p>
+</section>
+<section id="fullclosure-time-state-dependent" class="level2" data-number="9">
+<h2 data-number="9" class="anchored" data-anchor-id="fullclosure-time-state-dependent"><span class="header-section-number">9</span> 6. <code>FullClosure</code> — Time + State Dependent</h2>
+<p><code>FullClosure</code> takes <code>(match_morphism, clocktime) → distribution</code>. This is the most flexible non-parameterized timer: the hazard depends on both the current state and the clock.</p>
+<p><strong>Epidemiological interpretation</strong>: A declining epidemic — transmission depends on how many edges remain AND decays over time (e.g., behavioral adaptation).</p>
+<div id="16" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb10"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a>full_timer <span class="op">=</span> <span class="fu">FullClosure</span>((m, t) <span class="op">-&gt;</span> <span class="cf">begin</span></span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>    state <span class="op">=</span> <span class="fu">codom</span>(m)</span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>    n_edges <span class="op">=</span> <span class="fu">nparts</span>(state, <span class="op">:</span>E)</span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>    decay <span class="op">=</span> <span class="fu">exp</span>(<span class="op">-</span><span class="fl">0.1</span> <span class="op">*</span> t)</span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a>    <span class="fu">Exponential</span>(<span class="fu">max</span>(<span class="fl">0.1</span>, <span class="fl">5.0</span> <span class="op">/</span> (n_edges <span class="op">*</span> decay)))</span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a><span class="cf">end</span>)</span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a>infection_full <span class="op">=</span> <span class="fu">ABMRule</span>(<span class="op">:</span>InfFull, inf_rule, full_timer)</span>
+<span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a>abm_full <span class="op">=</span> <span class="fu">ABM</span>([infection_full])</span>
+<span id="cb10-10"><a href="#cb10-10" aria-hidden="true" tabindex="-1"></a>traj_full <span class="op">=</span> <span class="fu">run!</span>(abm_full, <span class="fu">deepcopy</span>(init); maxtime<span class="op">=</span><span class="fl">25.0</span>)</span>
+<span id="cb10-11"><a href="#cb10-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-12"><a href="#cb10-12" aria-hidden="true" tabindex="-1"></a><span class="fu">println</span>(<span class="st">"FullClosure events: </span><span class="sc">$</span>(<span class="fu">length</span>(traj_full))<span class="st">"</span>)</span>
+<span id="cb10-13"><a href="#cb10-13" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> (i, (t, _, name, _)) <span class="kw">in</span> <span class="fu">enumerate</span>(traj_full.events)</span>
+<span id="cb10-14"><a href="#cb10-14" aria-hidden="true" tabindex="-1"></a>    i <span class="op">&gt;</span> <span class="fl">8</span> <span class="op">&amp;&amp;</span> <span class="cf">break</span></span>
+<span id="cb10-15"><a href="#cb10-15" aria-hidden="true" tabindex="-1"></a>    <span class="fu">println</span>(<span class="st">"  t=</span><span class="sc">$</span>(<span class="fu">round</span>(t, digits<span class="op">=</span><span class="fl">3</span>))<span class="st">: </span><span class="sc">$</span>name<span class="st">"</span>)</span>
+<span id="cb10-16"><a href="#cb10-16" aria-hidden="true" tabindex="-1"></a><span class="cf">end</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<div class="ansi-escaped-output">
+<pre><span class="ansi-cyan-fg ansi-bold">[ </span><span class="ansi-cyan-fg ansi-bold">Info: </span>Stochastic scheduling algorithm ran out of events
+FullClosure events: 10
+  t=0.013: InfFull
+  t=0.015: InfFull
+  t=0.073: InfFull
+  t=0.102: InfFull
+  t=0.117: InfFull
+  t=0.195: InfFull
+  t=0.2: InfFull
+  t=0.471: InfFull
+</pre>
+</div>
+</div>
+</div>
+<p>Early events are fast (many edges, little decay); late events slow down as both edges deplete and the time-decay factor kicks in.</p>
+</section>
+<section id="fullclosureparams-time-state-params" class="level2" data-number="10">
+<h2 data-number="10" class="anchored" data-anchor-id="fullclosureparams-time-state-params"><span class="header-section-number">10</span> 7. <code>FullClosureParams</code> — Time + State + Params</h2>
+<p><code>FullClosureParams</code> takes <code>(match_morphism, clocktime, params) → distribution</code>. The most general parameterized timer.</p>
+<p><strong>Epidemiological interpretation</strong>: Seasonal transmission with an externally-set baseline rate.</p>
+<div id="18" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb11"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a>fullparam_timer <span class="op">=</span> <span class="fu">FullClosureParams</span>((m, t, p) <span class="op">-&gt;</span> <span class="cf">begin</span></span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>    seasonal <span class="op">=</span> <span class="fl">1.0</span> <span class="op">+</span> <span class="fl">0.5</span> <span class="op">*</span> <span class="fu">sin</span>(<span class="fl">2</span>π <span class="op">*</span> t <span class="op">/</span> p.period)</span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>    <span class="fu">Exponential</span>(p.base_rate <span class="op">/</span> seasonal)</span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a><span class="cf">end</span>)</span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a>infection_fp <span class="op">=</span> <span class="fu">ABMRule</span>(<span class="op">:</span>InfFullParam, inf_rule, fullparam_timer)</span>
+<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a>abm_fp <span class="op">=</span> <span class="fu">ABM</span>([infection_fp]; params<span class="op">=</span>(base_rate<span class="op">=</span><span class="fl">0.5</span>, period<span class="op">=</span><span class="fl">8.0</span>))</span>
+<span id="cb11-8"><a href="#cb11-8" aria-hidden="true" tabindex="-1"></a>traj_fp <span class="op">=</span> <span class="fu">run!</span>(abm_fp, <span class="fu">deepcopy</span>(init); maxtime<span class="op">=</span><span class="fl">20.0</span>)</span>
+<span id="cb11-9"><a href="#cb11-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-10"><a href="#cb11-10" aria-hidden="true" tabindex="-1"></a><span class="fu">println</span>(<span class="st">"FullClosureParams events: </span><span class="sc">$</span>(<span class="fu">length</span>(traj_fp))<span class="st">"</span>)</span>
+<span id="cb11-11"><a href="#cb11-11" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> (i, (t, _, name, _)) <span class="kw">in</span> <span class="fu">enumerate</span>(traj_fp.events)</span>
+<span id="cb11-12"><a href="#cb11-12" aria-hidden="true" tabindex="-1"></a>    i <span class="op">&gt;</span> <span class="fl">8</span> <span class="op">&amp;&amp;</span> <span class="cf">break</span></span>
+<span id="cb11-13"><a href="#cb11-13" aria-hidden="true" tabindex="-1"></a>    <span class="fu">println</span>(<span class="st">"  t=</span><span class="sc">$</span>(<span class="fu">round</span>(t, digits<span class="op">=</span><span class="fl">3</span>))<span class="st">: </span><span class="sc">$</span>name<span class="st">"</span>)</span>
+<span id="cb11-14"><a href="#cb11-14" aria-hidden="true" tabindex="-1"></a><span class="cf">end</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<div class="ansi-escaped-output">
+<pre><span class="ansi-cyan-fg ansi-bold">[ </span><span class="ansi-cyan-fg ansi-bold">Info: </span>Stochastic scheduling algorithm ran out of events
+FullClosureParams events: 10
+  t=0.057: InfFullParam
+  t=0.067: InfFullParam
+  t=0.094: InfFullParam
+  t=0.097: InfFullParam
+  t=0.122: InfFullParam
+  t=0.188: InfFullParam
+  t=0.328: InfFullParam
+  t=0.375: InfFullParam
+</pre>
+</div>
+</div>
+</div>
+<p>Both <code>base_rate</code> and <code>period</code> can be varied across scenarios.</p>
+</section>
+<section id="closurehistory-history-sensitive-hazard" class="level2" data-number="11">
+<h2 data-number="11" class="anchored" data-anchor-id="closurehistory-history-sensitive-hazard"><span class="header-section-number">11</span> 8. <code>ClosureHistory</code> — History-Sensitive Hazard</h2>
+<p><code>ClosureHistory</code> takes <code>(match_morphism, clocktime, traj) → distribution</code>. The trajectory contains all past events, enabling rates that depend on the full history.</p>
+<p><strong>Epidemiological interpretation</strong>: Waning immunity — as more events accumulate, the rate slows down (modeling saturation or exhaustion of susceptible contacts).</p>
+<div id="20" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb12"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="im">using</span> <span class="bu">Catlab.CategoricalAlgebra.CSets</span>: BitSetParts</span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="pp">@present</span> <span class="fu">SchGrphH</span>(FreeSchema) <span class="cf">begin</span></span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>    V<span class="op">::</span><span class="dt">Ob</span>; E<span class="op">::</span><span class="dt">Ob</span>; src<span class="op">::</span><span class="dt">Hom</span>(E,V); tgt<span class="op">::</span><span class="dt">Hom</span>(E,V)</span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a><span class="cf">end</span></span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a><span class="pp">@acset_type</span> <span class="fu">GrphH</span>(SchGrphH, part_type<span class="op">=</span>BitSetParts)</span>
+<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a>L_h <span class="op">=</span> <span class="pp">@acset</span> GrphH <span class="cf">begin</span> V<span class="op">=</span><span class="fl">2</span>; E<span class="op">=</span><span class="fl">1</span>; src<span class="op">=</span>[<span class="fl">1</span>]; tgt<span class="op">=</span>[<span class="fl">2</span>] <span class="cf">end</span></span>
+<span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a>I_h <span class="op">=</span> <span class="pp">@acset</span> GrphH <span class="cf">begin</span> V<span class="op">=</span><span class="fl">2</span> <span class="cf">end</span></span>
+<span id="cb12-9"><a href="#cb12-9" aria-hidden="true" tabindex="-1"></a>R_h <span class="op">=</span> <span class="pp">@acset</span> GrphH <span class="cf">begin</span> V<span class="op">=</span><span class="fl">2</span> <span class="cf">end</span></span>
+<span id="cb12-10"><a href="#cb12-10" aria-hidden="true" tabindex="-1"></a>inf_rule_h <span class="op">=</span> <span class="fu">Rule</span>(</span>
+<span id="cb12-11"><a href="#cb12-11" aria-hidden="true" tabindex="-1"></a>    <span class="fu">homomorphism</span>(I_h, L_h; initial<span class="op">=</span>(V<span class="op">=</span>[<span class="fl">1</span>,<span class="fl">2</span>],)),</span>
+<span id="cb12-12"><a href="#cb12-12" aria-hidden="true" tabindex="-1"></a>    <span class="fu">homomorphism</span>(I_h, R_h; initial<span class="op">=</span>(V<span class="op">=</span>[<span class="fl">1</span>,<span class="fl">2</span>],)))</span>
+<span id="cb12-13"><a href="#cb12-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-14"><a href="#cb12-14" aria-hidden="true" tabindex="-1"></a>history_timer <span class="op">=</span> <span class="fu">ClosureHistory</span>((m, t, traj) <span class="op">-&gt;</span> <span class="cf">begin</span></span>
+<span id="cb12-15"><a href="#cb12-15" aria-hidden="true" tabindex="-1"></a>    n_past <span class="op">=</span> <span class="fu">isnothing</span>(traj) ? <span class="fl">0</span> <span class="op">:</span> <span class="fu">length</span>(traj)</span>
+<span id="cb12-16"><a href="#cb12-16" aria-hidden="true" tabindex="-1"></a>    <span class="fu">Exponential</span>(<span class="fl">0.5</span> <span class="op">*</span> (<span class="fl">1</span> <span class="op">+</span> n_past))</span>
+<span id="cb12-17"><a href="#cb12-17" aria-hidden="true" tabindex="-1"></a><span class="cf">end</span>)</span>
+<span id="cb12-18"><a href="#cb12-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-19"><a href="#cb12-19" aria-hidden="true" tabindex="-1"></a>infection_hist <span class="op">=</span> <span class="fu">ABMRule</span>(<span class="op">:</span>InfHistory, inf_rule_h, history_timer)</span>
+<span id="cb12-20"><a href="#cb12-20" aria-hidden="true" tabindex="-1"></a>abm_hist <span class="op">=</span> <span class="fu">ABM</span>([infection_hist])</span>
+<span id="cb12-21"><a href="#cb12-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-22"><a href="#cb12-22" aria-hidden="true" tabindex="-1"></a>init_h <span class="op">=</span> <span class="pp">@acset</span> GrphH <span class="cf">begin</span></span>
+<span id="cb12-23"><a href="#cb12-23" aria-hidden="true" tabindex="-1"></a>    V <span class="op">=</span> <span class="fl">5</span></span>
+<span id="cb12-24"><a href="#cb12-24" aria-hidden="true" tabindex="-1"></a>    E <span class="op">=</span> <span class="fl">8</span></span>
+<span id="cb12-25"><a href="#cb12-25" aria-hidden="true" tabindex="-1"></a>    src <span class="op">=</span> [<span class="fl">1</span>,<span class="fl">1</span>,<span class="fl">2</span>,<span class="fl">2</span>,<span class="fl">3</span>,<span class="fl">3</span>,<span class="fl">4</span>,<span class="fl">5</span>]</span>
+<span id="cb12-26"><a href="#cb12-26" aria-hidden="true" tabindex="-1"></a>    tgt <span class="op">=</span> [<span class="fl">2</span>,<span class="fl">3</span>,<span class="fl">3</span>,<span class="fl">4</span>,<span class="fl">5</span>,<span class="fl">4</span>,<span class="fl">5</span>,<span class="fl">1</span>]</span>
+<span id="cb12-27"><a href="#cb12-27" aria-hidden="true" tabindex="-1"></a><span class="cf">end</span></span>
+<span id="cb12-28"><a href="#cb12-28" aria-hidden="true" tabindex="-1"></a>traj_hist <span class="op">=</span> <span class="fu">run!</span>(abm_hist, <span class="fu">deepcopy</span>(init_h); maxtime<span class="op">=</span><span class="fl">30.0</span>)</span>
+<span id="cb12-29"><a href="#cb12-29" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-30"><a href="#cb12-30" aria-hidden="true" tabindex="-1"></a><span class="fu">println</span>(<span class="st">"ClosureHistory events: </span><span class="sc">$</span>(<span class="fu">length</span>(traj_hist))<span class="st">"</span>)</span>
+<span id="cb12-31"><a href="#cb12-31" aria-hidden="true" tabindex="-1"></a>times <span class="op">=</span> [<span class="cn">e</span>[<span class="fl">1</span>] for <span class="cn">e</span> <span class="kw">in</span> traj_hist.events]</span>
+<span id="cb12-32"><a href="#cb12-32" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> (i, (t, _, name, _)) <span class="kw">in</span> <span class="fu">enumerate</span>(traj_hist.events)</span>
+<span id="cb12-33"><a href="#cb12-33" aria-hidden="true" tabindex="-1"></a>    i <span class="op">&gt;</span> <span class="fl">8</span> <span class="op">&amp;&amp;</span> <span class="cf">break</span></span>
+<span id="cb12-34"><a href="#cb12-34" aria-hidden="true" tabindex="-1"></a>    <span class="fu">println</span>(<span class="st">"  t=</span><span class="sc">$</span>(<span class="fu">round</span>(t, digits<span class="op">=</span><span class="fl">3</span>))<span class="st">: </span><span class="sc">$</span>name<span class="st">"</span>)</span>
+<span id="cb12-35"><a href="#cb12-35" aria-hidden="true" tabindex="-1"></a><span class="cf">end</span></span>
+<span id="cb12-36"><a href="#cb12-36" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-37"><a href="#cb12-37" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> <span class="fu">length</span>(times) <span class="op">&gt;=</span> <span class="fl">2</span></span>
+<span id="cb12-38"><a href="#cb12-38" aria-hidden="true" tabindex="-1"></a>    intervals <span class="op">=</span> <span class="fu">diff</span>(times)</span>
+<span id="cb12-39"><a href="#cb12-39" aria-hidden="true" tabindex="-1"></a>    <span class="fu">println</span>(<span class="st">"</span><span class="sc">\n</span><span class="st">Inter-event intervals (first 5): "</span>,</span>
+<span id="cb12-40"><a href="#cb12-40" aria-hidden="true" tabindex="-1"></a>        <span class="fu">join</span>(<span class="fu">round</span>.(intervals[<span class="fl">1</span><span class="op">:</span><span class="fu">min</span>(<span class="fl">5</span>,<span class="kw">end</span>)], digits<span class="op">=</span><span class="fl">3</span>), <span class="st">", "</span>))</span>
+<span id="cb12-41"><a href="#cb12-41" aria-hidden="true" tabindex="-1"></a>    <span class="fu">println</span>(<span class="st">"Intervals grow as history accumulates → waning immunity effect"</span>)</span>
+<span id="cb12-42"><a href="#cb12-42" aria-hidden="true" tabindex="-1"></a><span class="cf">end</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<div class="ansi-escaped-output">
+<pre><span class="ansi-cyan-fg ansi-bold">[ </span><span class="ansi-cyan-fg ansi-bold">Info: </span>Stochastic scheduling algorithm ran out of events
+ClosureHistory events: 8
+  t=0.012: InfHistory
+  t=0.087: InfHistory
+  t=0.104: InfHistory
+  t=0.169: InfHistory
+  t=0.179: InfHistory
+  t=0.331: InfHistory
+  t=0.384: InfHistory
+  t=0.903: InfHistory
+
+Inter-event intervals (first 5): 0.075, 0.017, 0.065, 0.011, 0.152
+Intervals grow as history accumulates → waning immunity effect
+</pre>
+</div>
+</div>
+</div>
+<p>Each successive event increases the mean waiting time, simulating population-level saturation.</p>
+</section>
+<section id="summary" class="level2" data-number="12">
+<h2 data-number="12" class="anchored" data-anchor-id="summary"><span class="header-section-number">12</span> Summary</h2>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 34%">
+<col style="width: 34%">
+<col style="width: 31%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Timer Type</th>
+<th>Depends On</th>
+<th>Use Case</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>DiscreteHazard(t)</code></td>
+<td>Nothing (fixed)</td>
+<td>Fixed incubation, scheduled events</td>
+</tr>
+<tr class="even">
+<td><code>ContinuousHazard(d)</code></td>
+<td>Nothing (random)</td>
+<td>Constant-rate Gillespie dynamics</td>
+</tr>
+<tr class="odd">
+<td><code>ClosureTime(f)</code></td>
+<td>Clock time</td>
+<td>Seasonal forcing, time-varying rates</td>
+</tr>
+<tr class="even">
+<td><code>ClosureState(f)</code></td>
+<td>Match/state</td>
+<td>Density-dependent transmission</td>
+</tr>
+<tr class="odd">
+<td><code>ClosureParams(f)</code></td>
+<td>Match + params</td>
+<td>Externally parameterized rates</td>
+</tr>
+<tr class="even">
+<td><code>FullClosure(f)</code></td>
+<td>Match + time</td>
+<td>State and time dependent</td>
+</tr>
+<tr class="odd">
+<td><code>FullClosureParams(f)</code></td>
+<td>Match + time + params</td>
+<td>General parameterized model</td>
+</tr>
+<tr class="even">
+<td><code>ClosureHistory(f)</code></td>
+<td>Match + time + trajectory</td>
+<td>History-sensitive (waning immunity)</td>
+</tr>
+</tbody>
+</table>
+<p>The choice of timer controls the <strong>stochastic dynamics</strong> without changing the rewriting rules. This separation of <em>what happens</em> (rules) from <em>when it happens</em> (timers) is a key design principle of AlgebraicABMs.jl.</p>
+</section>
+
+</main>
+<!-- /main column -->
+<script id="quarto-html-after-body" type="application/javascript">
+  window.document.addEventListener("DOMContentLoaded", function (event) {
+    const icon = "";
+    const anchorJS = new window.AnchorJS();
+    anchorJS.options = {
+      placement: 'right',
+      icon: icon
+    };
+    anchorJS.add('.anchored');
+    const isCodeAnnotation = (el) => {
+      for (const clz of el.classList) {
+        if (clz.startsWith('code-annotation-')) {                     
+          return true;
+        }
+      }
+      return false;
+    }
+    const onCopySuccess = function(e) {
+      // button target
+      const button = e.trigger;
+      // don't keep focus
+      button.blur();
+      // flash "checked"
+      button.classList.add('code-copy-button-checked');
+      var currentTitle = button.getAttribute("title");
+      button.setAttribute("title", "Copied!");
+      let tooltip;
+      if (window.bootstrap) {
+        button.setAttribute("data-bs-toggle", "tooltip");
+        button.setAttribute("data-bs-placement", "left");
+        button.setAttribute("data-bs-title", "Copied!");
+        tooltip = new bootstrap.Tooltip(button, 
+          { trigger: "manual", 
+            customClass: "code-copy-button-tooltip",
+            offset: [0, -8]});
+        tooltip.show();    
+      }
+      setTimeout(function() {
+        if (tooltip) {
+          tooltip.hide();
+          button.removeAttribute("data-bs-title");
+          button.removeAttribute("data-bs-toggle");
+          button.removeAttribute("data-bs-placement");
+        }
+        button.setAttribute("title", currentTitle);
+        button.classList.remove('code-copy-button-checked');
+      }, 1000);
+      // clear code selection
+      e.clearSelection();
+    }
+    const getTextToCopy = function(trigger) {
+      const outerScaffold = trigger.parentElement.cloneNode(true);
+      const codeEl = outerScaffold.querySelector('code');
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+    }
+    const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+      text: getTextToCopy
+    });
+    clipboard.on('success', onCopySuccess);
+    if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+      const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+        text: getTextToCopy,
+        container: window.document.getElementById('quarto-embedded-source-code-modal')
+      });
+      clipboardModal.on('success', onCopySuccess);
+    }
+      var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+      var mailtoRegex = new RegExp(/^mailto:/);
+        var filterRegex = new RegExp('/' + window.location.host + '/');
+      var isInternal = (href) => {
+          return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+      }
+      // Inspect non-navigation links and adorn them if external
+     var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+      for (var i=0; i<links.length; i++) {
+        const link = links[i];
+        if (!isInternal(link.href)) {
+          // undo the damage that might have been done by quarto-nav.js in the case of
+          // links that we want to consider external
+          if (link.dataset.originalHref !== undefined) {
+            link.href = link.dataset.originalHref;
+          }
+        }
+      }
+    function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+      const config = {
+        allowHTML: true,
+        maxWidth: 500,
+        delay: 100,
+        arrow: false,
+        appendTo: function(el) {
+            return el.parentElement;
+        },
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'quarto',
+        placement: 'bottom-start',
+      };
+      if (contentFn) {
+        config.content = contentFn;
+      }
+      if (onTriggerFn) {
+        config.onTrigger = onTriggerFn;
+      }
+      if (onUntriggerFn) {
+        config.onUntrigger = onUntriggerFn;
+      }
+      window.tippy(el, config); 
+    }
+    const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+    for (var i=0; i<noterefs.length; i++) {
+      const ref = noterefs[i];
+      tippyHover(ref, function() {
+        // use id or data attribute instead here
+        let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+        try { href = new URL(href).hash; } catch {}
+        const id = href.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note) {
+          return note.innerHTML;
+        } else {
+          return "";
+        }
+      });
+    }
+    const xrefs = window.document.querySelectorAll('a.quarto-xref');
+    const processXRef = (id, note) => {
+      // Strip column container classes
+      const stripColumnClz = (el) => {
+        el.classList.remove("page-full", "page-columns");
+        if (el.children) {
+          for (const child of el.children) {
+            stripColumnClz(child);
+          }
+        }
+      }
+      stripColumnClz(note)
+      if (id === null || id.startsWith('sec-')) {
+        // Special case sections, only their first couple elements
+        const container = document.createElement("div");
+        if (note.children && note.children.length > 2) {
+          container.appendChild(note.children[0].cloneNode(true));
+          for (let i = 1; i < note.children.length; i++) {
+            const child = note.children[i];
+            if (child.tagName === "P" && child.innerText === "") {
+              continue;
+            } else {
+              container.appendChild(child.cloneNode(true));
+              break;
+            }
+          }
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(container);
+          }
+          return container.innerHTML
+        } else {
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(note);
+          }
+          return note.innerHTML;
+        }
+      } else {
+        // Remove any anchor links if they are present
+        const anchorLink = note.querySelector('a.anchorjs-link');
+        if (anchorLink) {
+          anchorLink.remove();
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        if (note.classList.contains("callout")) {
+          return note.outerHTML;
+        } else {
+          return note.innerHTML;
+        }
+      }
+    }
+    for (var i=0; i<xrefs.length; i++) {
+      const xref = xrefs[i];
+      tippyHover(xref, undefined, function(instance) {
+        instance.disable();
+        let url = xref.getAttribute('href');
+        let hash = undefined; 
+        if (url.startsWith('#')) {
+          hash = url;
+        } else {
+          try { hash = new URL(url).hash; } catch {}
+        }
+        if (hash) {
+          const id = hash.replace(/^#\/?/, "");
+          const note = window.document.getElementById(id);
+          if (note !== null) {
+            try {
+              const html = processXRef(id, note.cloneNode(true));
+              instance.setContent(html);
+            } finally {
+              instance.enable();
+              instance.show();
+            }
+          } else {
+            // See if we can fetch this
+            fetch(url.split('#')[0])
+            .then(res => res.text())
+            .then(html => {
+              const parser = new DOMParser();
+              const htmlDoc = parser.parseFromString(html, "text/html");
+              const note = htmlDoc.getElementById(id);
+              if (note !== null) {
+                const html = processXRef(id, note);
+                instance.setContent(html);
+              } 
+            }).finally(() => {
+              instance.enable();
+              instance.show();
+            });
+          }
+        } else {
+          // See if we can fetch a full url (with no hash to target)
+          // This is a special case and we should probably do some content thinning / targeting
+          fetch(url)
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.querySelector('main.content');
+            if (note !== null) {
+              // This should only happen for chapter cross references
+              // (since there is no id in the URL)
+              // remove the first header
+              if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+                note.children[0].remove();
+              }
+              const html = processXRef(null, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      }, function(instance) {
+      });
+    }
+        let selectedAnnoteEl;
+        const selectorForAnnotation = ( cell, annotation) => {
+          let cellAttr = 'data-code-cell="' + cell + '"';
+          let lineAttr = 'data-code-annotation="' +  annotation + '"';
+          const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+          return selector;
+        }
+        const selectCodeLines = (annoteEl) => {
+          const doc = window.document;
+          const targetCell = annoteEl.getAttribute("data-target-cell");
+          const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+          const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+          const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+          const lineIds = lines.map((line) => {
+            return targetCell + "-" + line;
+          })
+          let top = null;
+          let height = null;
+          let parent = null;
+          if (lineIds.length > 0) {
+              //compute the position of the single el (top and bottom and make a div)
+              const el = window.document.getElementById(lineIds[0]);
+              top = el.offsetTop;
+              height = el.offsetHeight;
+              parent = el.parentElement.parentElement;
+            if (lineIds.length > 1) {
+              const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+              const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+              height = bottom - top;
+            }
+            if (top !== null && height !== null && parent !== null) {
+              // cook up a div (if necessary) and position it 
+              let div = window.document.getElementById("code-annotation-line-highlight");
+              if (div === null) {
+                div = window.document.createElement("div");
+                div.setAttribute("id", "code-annotation-line-highlight");
+                div.style.position = 'absolute';
+                parent.appendChild(div);
+              }
+              div.style.top = top - 2 + "px";
+              div.style.height = height + 4 + "px";
+              div.style.left = 0;
+              let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+              if (gutterDiv === null) {
+                gutterDiv = window.document.createElement("div");
+                gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+                gutterDiv.style.position = 'absolute';
+                const codeCell = window.document.getElementById(targetCell);
+                const gutter = codeCell.querySelector('.code-annotation-gutter');
+                gutter.appendChild(gutterDiv);
+              }
+              gutterDiv.style.top = top - 2 + "px";
+              gutterDiv.style.height = height + 4 + "px";
+            }
+            selectedAnnoteEl = annoteEl;
+          }
+        };
+        const unselectCodeLines = () => {
+          const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+          elementsIds.forEach((elId) => {
+            const div = window.document.getElementById(elId);
+            if (div) {
+              div.remove();
+            }
+          });
+          selectedAnnoteEl = undefined;
+        };
+          // Handle positioning of the toggle
+      window.addEventListener(
+        "resize",
+        throttle(() => {
+          elRect = undefined;
+          if (selectedAnnoteEl) {
+            selectCodeLines(selectedAnnoteEl);
+          }
+        }, 10)
+      );
+      function throttle(fn, ms) {
+      let throttle = false;
+      let timer;
+        return (...args) => {
+          if(!throttle) { // first call gets through
+              fn.apply(this, args);
+              throttle = true;
+          } else { // all the others get throttled
+              if(timer) clearTimeout(timer); // cancel #2
+              timer = setTimeout(() => {
+                fn.apply(this, args);
+                timer = throttle = false;
+              }, ms);
+          }
+        };
+      }
+        // Attach click handler to the DT
+        const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+        for (const annoteDlNode of annoteDls) {
+          annoteDlNode.addEventListener('click', (event) => {
+            const clickedEl = event.target;
+            if (clickedEl !== selectedAnnoteEl) {
+              unselectCodeLines();
+              const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+              if (activeEl) {
+                activeEl.classList.remove('code-annotation-active');
+              }
+              selectCodeLines(clickedEl);
+              clickedEl.classList.add('code-annotation-active');
+            } else {
+              // Unselect the line
+              unselectCodeLines();
+              clickedEl.classList.remove('code-annotation-active');
+            }
+          });
+        }
+    const findCites = (el) => {
+      const parentEl = el.parentElement;
+      if (parentEl) {
+        const cites = parentEl.dataset.cites;
+        if (cites) {
+          return {
+            el,
+            cites: cites.split(' ')
+          };
+        } else {
+          return findCites(el.parentElement)
+        }
+      } else {
+        return undefined;
+      }
+    };
+    var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+    for (var i=0; i<bibliorefs.length; i++) {
+      const ref = bibliorefs[i];
+      const citeInfo = findCites(ref);
+      if (citeInfo) {
+        tippyHover(citeInfo.el, function() {
+          var popup = window.document.createElement('div');
+          citeInfo.cites.forEach(function(cite) {
+            var citeDiv = window.document.createElement('div');
+            citeDiv.classList.add('hanging-indent');
+            citeDiv.classList.add('csl-entry');
+            var biblioDiv = window.document.getElementById('ref-' + cite);
+            if (biblioDiv) {
+              citeDiv.innerHTML = biblioDiv.innerHTML;
+            }
+            popup.appendChild(citeDiv);
+          });
+          return popup.innerHTML;
+        });
+      }
+    }
+  });
+  </script>
+</div> <!-- /content -->
+
+
+
+
+</body></html>

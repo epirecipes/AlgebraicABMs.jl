@@ -1,0 +1,1267 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.9.28">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+<meta name="author" content="Simon Frost">
+<meta name="dcterms.date" content="2026-03-30">
+
+<title>Ecological Models</title>
+<style>
+/* Default styles provided by pandoc.
+** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+*/
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="06_ecology_files/libs/clipboard/clipboard.min.js"></script>
+<script src="06_ecology_files/libs/quarto-html/quarto.js" type="module"></script>
+<script src="06_ecology_files/libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="06_ecology_files/libs/quarto-html/popper.min.js"></script>
+<script src="06_ecology_files/libs/quarto-html/tippy.umd.min.js"></script>
+<script src="06_ecology_files/libs/quarto-html/anchor.min.js"></script>
+<link href="06_ecology_files/libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="06_ecology_files/libs/quarto-html/quarto-syntax-highlighting-1d541e707deb911ee702dcbe28eecf08.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="06_ecology_files/libs/bootstrap/bootstrap.min.js"></script>
+<link href="06_ecology_files/libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="06_ecology_files/libs/bootstrap/bootstrap-f93d581b41f20e53031fef139986cb6a.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+
+  <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
+  <script defer="" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
+
+<script type="text/javascript">
+const typesetMath = (el) => {
+  if (window.MathJax) {
+    // MathJax Typeset
+    window.MathJax.typeset([el]);
+  } else if (window.katex) {
+    // KaTeX Render
+    var mathElements = el.getElementsByClassName("math");
+    var macros = [];
+    for (var i = 0; i < mathElements.length; i++) {
+      var texText = mathElements[i].firstChild;
+      if (mathElements[i].tagName == "SPAN" && texText && texText.data) {
+        window.katex.render(texText.data, mathElements[i], {
+          displayMode: mathElements[i].classList.contains('display'),
+          throwOnError: false,
+          macros: macros,
+          fleqn: false
+        });
+      }
+    }
+  }
+}
+window.Quarto = {
+  typesetMath
+};
+</script>
+
+</head>
+
+<body class="quarto-light">
+
+<div id="quarto-content" class="page-columns page-rows-contents page-layout-article">
+<div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+  <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">Table of contents</h2>
+   
+  <ul>
+  <li><a href="#overview" id="toc-overview" class="nav-link active" data-scroll-target="#overview"><span class="header-section-number">1</span> Overview</a></li>
+  <li><a href="#setup" id="toc-setup" class="nav-link" data-scroll-target="#setup"><span class="header-section-number">2</span> Setup</a></li>
+  <li><a href="#example-1-birth-death-immigration-process" id="toc-example-1-birth-death-immigration-process" class="nav-link" data-scroll-target="#example-1-birth-death-immigration-process"><span class="header-section-number">3</span> Example 1: Birth-Death-Immigration Process</a>
+  <ul class="collapse">
+  <li><a href="#model-structure" id="toc-model-structure" class="nav-link" data-scroll-target="#model-structure"><span class="header-section-number">3.1</span> Model Structure</a></li>
+  <li><a href="#define-the-rules" id="toc-define-the-rules" class="nav-link" data-scroll-target="#define-the-rules"><span class="header-section-number">3.2</span> Define the Rules</a></li>
+  <li><a href="#analytical-steady-state" id="toc-analytical-steady-state" class="nav-link" data-scroll-target="#analytical-steady-state"><span class="header-section-number">3.3</span> Analytical Steady State</a></li>
+  <li><a href="#run-the-simulation" id="toc-run-the-simulation" class="nav-link" data-scroll-target="#run-the-simulation"><span class="header-section-number">3.4</span> Run the Simulation</a></li>
+  <li><a href="#analyze-results" id="toc-analyze-results" class="nav-link" data-scroll-target="#analyze-results"><span class="header-section-number">3.5</span> Analyze Results</a></li>
+  </ul></li>
+  <li><a href="#example-2-predator-prey-on-a-graph" id="toc-example-2-predator-prey-on-a-graph" class="nav-link" data-scroll-target="#example-2-predator-prey-on-a-graph"><span class="header-section-number">4</span> Example 2: Predator-Prey on a Graph</a>
+  <ul class="collapse">
+  <li><a href="#predator-prey-birth-death-and-predation" id="toc-predator-prey-birth-death-and-predation" class="nav-link" data-scroll-target="#predator-prey-birth-death-and-predation"><span class="header-section-number">4.1</span> Predator-Prey: Birth, Death, and Predation</a></li>
+  <li><a href="#analyze-population-dynamics" id="toc-analyze-population-dynamics" class="nav-link" data-scroll-target="#analyze-population-dynamics"><span class="header-section-number">4.2</span> Analyze Population Dynamics</a></li>
+  <li><a href="#multiple-replicates" id="toc-multiple-replicates" class="nav-link" data-scroll-target="#multiple-replicates"><span class="header-section-number">4.3</span> Multiple Replicates</a></li>
+  </ul></li>
+  <li><a href="#example-3-metapopulation-dynamics" id="toc-example-3-metapopulation-dynamics" class="nav-link" data-scroll-target="#example-3-metapopulation-dynamics"><span class="header-section-number">5</span> Example 3: Metapopulation Dynamics</a>
+  <ul class="collapse">
+  <li><a href="#schema-patches-with-populations" id="toc-schema-patches-with-populations" class="nav-link" data-scroll-target="#schema-patches-with-populations"><span class="header-section-number">5.1</span> Schema: Patches with Populations</a></li>
+  <li><a href="#build-the-initial-landscape" id="toc-build-the-initial-landscape" class="nav-link" data-scroll-target="#build-the-initial-landscape"><span class="header-section-number">5.2</span> Build the Initial Landscape</a></li>
+  <li><a href="#define-metapopulation-rules" id="toc-define-metapopulation-rules" class="nav-link" data-scroll-target="#define-metapopulation-rules"><span class="header-section-number">5.3</span> Define Metapopulation Rules</a></li>
+  <li><a href="#run-the-metapopulation-model" id="toc-run-the-metapopulation-model" class="nav-link" data-scroll-target="#run-the-metapopulation-model"><span class="header-section-number">5.4</span> Run the Metapopulation Model</a></li>
+  <li><a href="#analyze-metapopulation-dynamics" id="toc-analyze-metapopulation-dynamics" class="nav-link" data-scroll-target="#analyze-metapopulation-dynamics"><span class="header-section-number">5.5</span> Analyze Metapopulation Dynamics</a></li>
+  <li><a href="#effect-of-network-topology" id="toc-effect-of-network-topology" class="nav-link" data-scroll-target="#effect-of-network-topology"><span class="header-section-number">5.6</span> Effect of Network Topology</a></li>
+  <li><a href="#patch-level-analysis" id="toc-patch-level-analysis" class="nav-link" data-scroll-target="#patch-level-analysis"><span class="header-section-number">5.7</span> Patch-Level Analysis</a></li>
+  </ul></li>
+  <li><a href="#key-ecological-modeling-patterns" id="toc-key-ecological-modeling-patterns" class="nav-link" data-scroll-target="#key-ecological-modeling-patterns"><span class="header-section-number">6</span> Key Ecological Modeling Patterns</a></li>
+  <li><a href="#summary" id="toc-summary" class="nav-link" data-scroll-target="#summary"><span class="header-section-number">7</span> Summary</a></li>
+  </ul>
+<div class="quarto-alternate-formats"><h2>Other Formats</h2><ul><li><a href="06_ecology.pdf"><i class="bi bi-file-pdf"></i>PDF</a></li><li><a href="06_ecology.md"><i class="bi bi-file-code"></i>Github (GFM)</a></li></ul></div></nav>
+</div>
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">Ecological Models</h1>
+<p class="subtitle lead">Agent-based ecology with algebraic rewriting</p>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    <div>
+    <div class="quarto-title-meta-heading">Author</div>
+    <div class="quarto-title-meta-contents">
+             <p>Simon Frost </p>
+          </div>
+  </div>
+    
+    <div>
+    <div class="quarto-title-meta-heading">Published</div>
+    <div class="quarto-title-meta-contents">
+      <p class="date">March 30, 2026</p>
+    </div>
+  </div>
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<section id="overview" class="level2" data-number="1">
+<h2 data-number="1" class="anchored" data-anchor-id="overview"><span class="header-section-number">1</span> Overview</h2>
+<p>AlgebraicABMs provides a natural framework for ecological modeling, where populations are represented as objects in an ACSet and demographic events (birth, death, predation, migration) are rewrite rules. This vignette demonstrates three ecological models:</p>
+<ol type="1">
+<li><strong>Birth-Death-Immigration</strong>: The simplest population model with analytical steady state</li>
+<li><strong>Predator-Prey on a Graph</strong>: Lotka-Volterra style dynamics with spatial structure</li>
+<li><strong>Metapopulation Dynamics</strong>: Migration between connected habitat patches</li>
+</ol>
+<p>Each model highlights different AlgebraicABMs features, from basic vertex creation/deletion to state-dependent timers and graph-based interactions.</p>
+</section>
+<section id="setup" class="level2" data-number="2">
+<h2 data-number="2" class="anchored" data-anchor-id="setup"><span class="header-section-number">2</span> Setup</h2>
+<div id="2" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">using</span> <span class="bu">AlgebraicABMs</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">using</span> <span class="bu">Catlab</span>, <span class="bu">AlgebraicRewriting</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="im">using</span> <span class="bu">Distributions</span>: Exponential</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="im">using</span> <span class="bu">Random</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="bu">Random</span>.<span class="fu">seed!</span>(<span class="fl">42</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display" data-execution_count="1">
+<pre><code>TaskLocalRNG()</code></pre>
+</div>
+</div>
+</section>
+<section id="example-1-birth-death-immigration-process" class="level2" data-number="3">
+<h2 data-number="3" class="anchored" data-anchor-id="example-1-birth-death-immigration-process"><span class="header-section-number">3</span> Example 1: Birth-Death-Immigration Process</h2>
+<p>The birth-death-immigration (BDI) process is a foundational ecological model. Organisms are born, die, and immigrate into a habitat. At equilibrium, the expected population size has a known analytical form.</p>
+<section id="model-structure" class="level3" data-number="3.1">
+<h3 data-number="3.1" class="anchored" data-anchor-id="model-structure"><span class="header-section-number">3.1</span> Model Structure</h3>
+<p>Each organism is a vertex in a simple set (no edges). The three events are:</p>
+<ul>
+<li><strong>Birth</strong>: duplicate a vertex (one organism becomes two)</li>
+<li><strong>Death</strong>: remove a vertex</li>
+<li><strong>Immigration</strong>: create a new vertex from nothing</li>
+</ul>
+<div id="4" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Use the simplest schema: just vertices (Graph with no edges needed)</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="co"># We use Graph(1) as a single-vertex pattern</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="fu">println</span>(<span class="st">"BDI Model: vertices = organisms, no edges needed"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>BDI Model: vertices = organisms, no edges needed</code></pre>
+</div>
+</div>
+</section>
+<section id="define-the-rules" class="level3" data-number="3.2">
+<h3 data-number="3.2" class="anchored" data-anchor-id="define-the-rules"><span class="header-section-number">3.2</span> Define the Rules</h3>
+<div id="6" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb5"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Birth: an existing organism produces an offspring</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="co"># Pattern: one vertex → Result: two vertices (original + offspring)</span></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>L_birth <span class="op">=</span> <span class="fu">Graph</span>(<span class="fl">1</span>)  <span class="co"># match one organism</span></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>I_birth <span class="op">=</span> <span class="fu">Graph</span>(<span class="fl">1</span>)  <span class="co"># preserve the parent</span></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>R_birth <span class="op">=</span> <span class="fu">Graph</span>(<span class="fl">2</span>)  <span class="co"># parent + offspring</span></span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>birth_rate <span class="op">=</span> <span class="fl">0.3</span></span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>birth <span class="op">=</span> <span class="fu">ABMRule</span>(<span class="op">:</span>Birth,</span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>    <span class="fu">Rule</span>(<span class="fu">id</span>(L_birth),</span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a>         <span class="fu">homomorphism</span>(I_birth, R_birth; initial<span class="op">=</span>(V<span class="op">=</span>[<span class="fl">1</span>],))),</span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a>    <span class="fu">ContinuousHazard</span>(<span class="fu">Exponential</span>(<span class="fl">1.0</span> <span class="op">/</span> birth_rate)))</span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a><span class="fu">println</span>(<span class="st">"Birth rule: rate = </span><span class="sc">$</span>birth_rate<span class="st"> per organism"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Birth rule: rate = 0.3 per organism</code></pre>
+</div>
+</div>
+<div id="8" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Death: an organism is removed</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="co"># Pattern: one vertex → Result: empty</span></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>L_death <span class="op">=</span> <span class="fu">Graph</span>(<span class="fl">1</span>)</span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>I_death <span class="op">=</span> <span class="fu">Graph</span>(<span class="fl">0</span>)</span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>R_death <span class="op">=</span> <span class="fu">Graph</span>(<span class="fl">0</span>)</span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>death_rate <span class="op">=</span> <span class="fl">0.5</span></span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>death <span class="op">=</span> <span class="fu">ABMRule</span>(<span class="op">:</span>Death,</span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a>    <span class="fu">Rule</span>(<span class="fu">homomorphism</span>(I_death, L_death), <span class="fu">id</span>(I_death)),</span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a>    <span class="fu">ContinuousHazard</span>(<span class="fu">Exponential</span>(<span class="fl">1.0</span> <span class="op">/</span> death_rate)))</span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a><span class="fu">println</span>(<span class="st">"Death rule: rate = </span><span class="sc">$</span>death_rate<span class="st"> per organism"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Death rule: rate = 0.5 per organism</code></pre>
+</div>
+</div>
+<div id="10" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb9"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Immigration: a new organism appears from outside</span></span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="co"># Pattern: empty → Result: one vertex</span></span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>immigration_rate <span class="op">=</span> <span class="fl">2.0</span></span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>immigration <span class="op">=</span> <span class="fu">ABMRule</span>(<span class="op">:</span>Immigration,</span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>    <span class="fu">Rule</span>(<span class="fu">id</span>(<span class="fu">Graph</span>(<span class="fl">0</span>)),</span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>         <span class="fu">create</span>(<span class="fu">ob</span>(<span class="fu">terminal</span>(Graph)))),</span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>    <span class="fu">ContinuousHazard</span>(<span class="fu">Exponential</span>(<span class="fl">1.0</span> <span class="op">/</span> immigration_rate)))</span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a><span class="fu">println</span>(<span class="st">"Immigration rule: rate = </span><span class="sc">$</span>immigration_rate<span class="st"> (population-independent)"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Immigration rule: rate = 2.0 (population-independent)</code></pre>
+</div>
+</div>
+</section>
+<section id="analytical-steady-state" class="level3" data-number="3.3">
+<h3 data-number="3.3" class="anchored" data-anchor-id="analytical-steady-state"><span class="header-section-number">3.3</span> Analytical Steady State</h3>
+<p>For the BDI process with per-capita birth rate <span class="math inline">\(b\)</span>, per-capita death rate <span class="math inline">\(d\)</span> (where <span class="math inline">\(d &gt; b\)</span>), and immigration rate <span class="math inline">\(\lambda\)</span>, the expected steady-state population is:</p>
+<p><span class="math display">\[E[N] = \frac{\lambda}{d - b}\]</span></p>
+<div id="12" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb11"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a>expected_N <span class="op">=</span> immigration_rate <span class="op">/</span> (death_rate <span class="op">-</span> birth_rate)</span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a><span class="fu">println</span>(<span class="st">"Expected steady-state population: </span><span class="sc">$</span>expected_N<span class="st">"</span>)</span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a><span class="fu">println</span>(<span class="st">"  (immigration=</span><span class="sc">$</span>immigration_rate<span class="st"> / (death=</span><span class="sc">$</span>death_rate<span class="st"> - birth=</span><span class="sc">$</span>birth_rate<span class="st">))"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Expected steady-state population: 10.0
+  (immigration=2.0 / (death=0.5 - birth=0.3))</code></pre>
+</div>
+</div>
+</section>
+<section id="run-the-simulation" class="level3" data-number="3.4">
+<h3 data-number="3.4" class="anchored" data-anchor-id="run-the-simulation"><span class="header-section-number">3.4</span> Run the Simulation</h3>
+<div id="14" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb13"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a>abm_bdi <span class="op">=</span> <span class="fu">ABM</span>([birth, death, immigration])</span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Start with a small population</span></span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a>init_bdi <span class="op">=</span> <span class="fu">Graph</span>(<span class="fl">5</span>)</span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a><span class="co"># Track population size over time</span></span>
+<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a>obs_N <span class="op">=</span> <span class="fu">Observable</span>(<span class="op">:</span>N, <span class="fu">Graph</span>(<span class="fl">1</span>))</span>
+<span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-9"><a href="#cb13-9" aria-hidden="true" tabindex="-1"></a>result_bdi <span class="op">=</span> <span class="fu">run!</span>(abm_bdi, <span class="fu">deepcopy</span>(init_bdi);</span>
+<span id="cb13-10"><a href="#cb13-10" aria-hidden="true" tabindex="-1"></a>    maxtime<span class="op">=</span><span class="fl">50.0</span>, maxevent<span class="op">=</span><span class="fl">10000</span>,</span>
+<span id="cb13-11"><a href="#cb13-11" aria-hidden="true" tabindex="-1"></a>    observables<span class="op">=</span>[obs_N], save_every<span class="op">=</span><span class="fl">1.0</span>)</span>
+<span id="cb13-12"><a href="#cb13-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-13"><a href="#cb13-13" aria-hidden="true" tabindex="-1"></a><span class="fu">println</span>(<span class="st">"Simulation complete: </span><span class="sc">$</span>(<span class="fu">length</span>(result_bdi))<span class="st"> events"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Simulation complete: 6123 events</code></pre>
+</div>
+</div>
+</section>
+<section id="analyze-results" class="level3" data-number="3.5">
+<h3 data-number="3.5" class="anchored" data-anchor-id="analyze-results"><span class="header-section-number">3.5</span> Analyze Results</h3>
+<div id="16" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb15"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Count events by type</span></span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a>event_counts <span class="op">=</span> <span class="fu">Dict</span><span class="dt">{String, Int}</span>()</span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> (_, _, name, _) <span class="kw">in</span> result_bdi.events</span>
+<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a>    event_counts[name] <span class="op">=</span> <span class="fu">get</span>(event_counts, name, <span class="fl">0</span>) <span class="op">+</span> <span class="fl">1</span></span>
+<span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a><span class="cf">end</span></span>
+<span id="cb15-6"><a href="#cb15-6" aria-hidden="true" tabindex="-1"></a><span class="fu">println</span>(<span class="st">"Event counts:"</span>)</span>
+<span id="cb15-7"><a href="#cb15-7" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> (name, count) <span class="kw">in</span> <span class="fu">sort</span>(<span class="fu">collect</span>(event_counts))</span>
+<span id="cb15-8"><a href="#cb15-8" aria-hidden="true" tabindex="-1"></a>    <span class="fu">println</span>(<span class="st">"  </span><span class="sc">$</span>name<span class="st">: </span><span class="sc">$</span>count<span class="st">"</span>)</span>
+<span id="cb15-9"><a href="#cb15-9" aria-hidden="true" tabindex="-1"></a><span class="cf">end</span></span>
+<span id="cb15-10"><a href="#cb15-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-11"><a href="#cb15-11" aria-hidden="true" tabindex="-1"></a><span class="co"># Population trajectory from observables</span></span>
+<span id="cb15-12"><a href="#cb15-12" aria-hidden="true" tabindex="-1"></a><span class="fu">println</span>(<span class="st">"</span><span class="sc">\n</span><span class="st">Population trajectory (sampled every 1.0 time units):"</span>)</span>
+<span id="cb15-13"><a href="#cb15-13" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> (t, snap) <span class="kw">in</span> result_bdi.snapshots</span>
+<span id="cb15-14"><a href="#cb15-14" aria-hidden="true" tabindex="-1"></a>    t <span class="op">&gt;</span> <span class="fl">20.0</span> <span class="op">&amp;&amp;</span> <span class="cf">break</span></span>
+<span id="cb15-15"><a href="#cb15-15" aria-hidden="true" tabindex="-1"></a>    <span class="fu">println</span>(<span class="st">"  t=</span><span class="sc">$</span>(<span class="fu">round</span>(t, digits<span class="op">=</span><span class="fl">1</span>))<span class="st">: N=</span><span class="sc">$</span>(snap[<span class="op">:</span>N])<span class="st">"</span>)</span>
+<span id="cb15-16"><a href="#cb15-16" aria-hidden="true" tabindex="-1"></a><span class="cf">end</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Event counts:
+  Birth: 3184
+  Death: 2847
+  Immigration: 92
+
+Population trajectory (sampled every 1.0 time units):
+  t=0.0: N=5
+  t=1.0: N=7
+  t=2.0: N=7
+  t=3.0: N=9
+  t=4.0: N=10
+  t=5.0: N=13
+  t=6.0: N=19
+  t=7.0: N=24
+  t=8.0: N=31
+  t=9.0: N=34
+  t=10.0: N=43
+  t=11.0: N=49
+  t=12.0: N=58
+  t=13.0: N=61
+  t=14.0: N=70
+  t=15.0: N=84
+  t=16.0: N=107
+  t=17.0: N=109
+  t=18.0: N=116
+  t=19.0: N=120
+  t=20.0: N=134</code></pre>
+</div>
+</div>
+<div id="18" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb17"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Compare final population to analytical prediction</span></span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> !<span class="fu">isempty</span>(result_bdi.snapshots)</span>
+<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Average over second half of simulation (after burn-in)</span></span>
+<span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a>    mid <span class="op">=</span> <span class="fu">length</span>(result_bdi.snapshots) <span class="op">÷</span> <span class="fl">2</span></span>
+<span id="cb17-5"><a href="#cb17-5" aria-hidden="true" tabindex="-1"></a>    late_pops <span class="op">=</span> [snap[<span class="op">:</span>N] for (_, snap) <span class="kw">in</span> result_bdi.snapshots[mid<span class="op">:</span><span class="kw">end</span>]]</span>
+<span id="cb17-6"><a href="#cb17-6" aria-hidden="true" tabindex="-1"></a>    mean_pop <span class="op">=</span> <span class="fu">sum</span>(late_pops) <span class="op">/</span> <span class="fu">length</span>(late_pops)</span>
+<span id="cb17-7"><a href="#cb17-7" aria-hidden="true" tabindex="-1"></a>    <span class="fu">println</span>(<span class="st">"Observed mean population (late simulation): </span><span class="sc">$</span>(<span class="fu">round</span>(mean_pop, digits<span class="op">=</span><span class="fl">1</span>))<span class="st">"</span>)</span>
+<span id="cb17-8"><a href="#cb17-8" aria-hidden="true" tabindex="-1"></a>    <span class="fu">println</span>(<span class="st">"Expected steady state: </span><span class="sc">$</span>expected_N<span class="st">"</span>)</span>
+<span id="cb17-9"><a href="#cb17-9" aria-hidden="true" tabindex="-1"></a>    <span class="fu">println</span>(<span class="st">"Relative error: </span><span class="sc">$</span>(<span class="fu">round</span>(<span class="fu">abs</span>(mean_pop <span class="op">-</span> expected_N) <span class="op">/</span> expected_N <span class="op">*</span> <span class="fl">100</span>, digits<span class="op">=</span><span class="fl">1</span>))<span class="st">%"</span>)</span>
+<span id="cb17-10"><a href="#cb17-10" aria-hidden="true" tabindex="-1"></a><span class="cf">end</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Observed mean population (late simulation): 338.9
+Expected steady state: 10.0
+Relative error: 3288.5%</code></pre>
+</div>
+</div>
+</section>
+</section>
+<section id="example-2-predator-prey-on-a-graph" class="level2" data-number="4">
+<h2 data-number="4" class="anchored" data-anchor-id="example-2-predator-prey-on-a-graph"><span class="header-section-number">4</span> Example 2: Predator-Prey on a Graph</h2>
+<p>This model implements Lotka-Volterra-style predator-prey dynamics on a spatial graph. Prey (rabbits) and predators (foxes) occupy vertices of a shared graph; predation requires spatial proximity (a connecting edge).</p>
+<section id="predator-prey-birth-death-and-predation" class="level3" data-number="4.1">
+<h3 data-number="4.1" class="anchored" data-anchor-id="predator-prey-birth-death-and-predation"><span class="header-section-number">4.1</span> Predator-Prey: Birth, Death, and Predation</h3>
+<p>We model a simple predator-prey system using Graph vertices. Each species has birth, death, and interaction rules.</p>
+<div id="20" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb19"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Prey birth: a new vertex appears (prey reproduce)</span></span>
+<span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a>prey_birth <span class="op">=</span> <span class="fu">ABMRule</span>(<span class="op">:</span>PreyBirth,</span>
+<span id="cb19-3"><a href="#cb19-3" aria-hidden="true" tabindex="-1"></a>    <span class="fu">Rule</span>(<span class="fu">id</span>(<span class="fu">Graph</span>()), <span class="fu">create</span>(<span class="fu">ob</span>(<span class="fu">terminal</span>(Graph)))),</span>
+<span id="cb19-4"><a href="#cb19-4" aria-hidden="true" tabindex="-1"></a>    <span class="fu">ContinuousHazard</span>(<span class="fl">0.8</span>))</span>
+<span id="cb19-5"><a href="#cb19-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-6"><a href="#cb19-6" aria-hidden="true" tabindex="-1"></a><span class="co"># Prey death: a vertex is removed</span></span>
+<span id="cb19-7"><a href="#cb19-7" aria-hidden="true" tabindex="-1"></a>prey_death <span class="op">=</span> <span class="fu">ABMRule</span>(<span class="op">:</span>PreyDeath,</span>
+<span id="cb19-8"><a href="#cb19-8" aria-hidden="true" tabindex="-1"></a>    <span class="fu">Rule</span>(<span class="fu">homomorphism</span>(<span class="fu">Graph</span>(<span class="fl">0</span>), <span class="fu">Graph</span>(<span class="fl">1</span>)), <span class="fu">id</span>(<span class="fu">Graph</span>(<span class="fl">0</span>))),</span>
+<span id="cb19-9"><a href="#cb19-9" aria-hidden="true" tabindex="-1"></a>    <span class="fu">ContinuousHazard</span>(<span class="fl">0.1</span>))</span>
+<span id="cb19-10"><a href="#cb19-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-11"><a href="#cb19-11" aria-hidden="true" tabindex="-1"></a><span class="co"># Predation: an edge is removed along with its target vertex</span></span>
+<span id="cb19-12"><a href="#cb19-12" aria-hidden="true" tabindex="-1"></a>L_pred <span class="op">=</span> <span class="pp">@acset</span> Graph <span class="cf">begin</span> V<span class="op">=</span><span class="fl">2</span>; E<span class="op">=</span><span class="fl">1</span>; src<span class="op">=</span>[<span class="fl">1</span>]; tgt<span class="op">=</span>[<span class="fl">2</span>] <span class="cf">end</span></span>
+<span id="cb19-13"><a href="#cb19-13" aria-hidden="true" tabindex="-1"></a>I_pred <span class="op">=</span> <span class="fu">Graph</span>(<span class="fl">1</span>)</span>
+<span id="cb19-14"><a href="#cb19-14" aria-hidden="true" tabindex="-1"></a>predation <span class="op">=</span> <span class="fu">ABMRule</span>(<span class="op">:</span>Predation,</span>
+<span id="cb19-15"><a href="#cb19-15" aria-hidden="true" tabindex="-1"></a>    <span class="fu">Rule</span>(<span class="fu">homomorphism</span>(I_pred, L_pred; initial<span class="op">=</span>(V<span class="op">=</span>[<span class="fl">1</span>],)), <span class="fu">id</span>(I_pred)),</span>
+<span id="cb19-16"><a href="#cb19-16" aria-hidden="true" tabindex="-1"></a>    <span class="fu">ContinuousHazard</span>(<span class="fl">0.3</span>))</span>
+<span id="cb19-17"><a href="#cb19-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-18"><a href="#cb19-18" aria-hidden="true" tabindex="-1"></a><span class="fu">println</span>(<span class="st">"Rules: prey birth (0.8), prey death (0.1), predation (0.3 per edge)"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Rules: prey birth (0.8), prey death (0.1), predation (0.3 per edge)</code></pre>
+</div>
+</div>
+<div id="22" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb21"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Initial state: 10 vertices with some edges</span></span>
+<span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a>init_pp <span class="op">=</span> <span class="pp">@acset</span> Graph <span class="cf">begin</span></span>
+<span id="cb21-3"><a href="#cb21-3" aria-hidden="true" tabindex="-1"></a>    V<span class="op">=</span><span class="fl">10</span>; E<span class="op">=</span><span class="fl">8</span></span>
+<span id="cb21-4"><a href="#cb21-4" aria-hidden="true" tabindex="-1"></a>    src<span class="op">=</span>[<span class="fl">1</span>,<span class="fl">2</span>,<span class="fl">3</span>,<span class="fl">4</span>,<span class="fl">5</span>,<span class="fl">6</span>,<span class="fl">7</span>,<span class="fl">8</span>]; tgt<span class="op">=</span>[<span class="fl">3</span>,<span class="fl">4</span>,<span class="fl">5</span>,<span class="fl">6</span>,<span class="fl">7</span>,<span class="fl">8</span>,<span class="fl">9</span>,<span class="fl">10</span>]</span>
+<span id="cb21-5"><a href="#cb21-5" aria-hidden="true" tabindex="-1"></a><span class="cf">end</span></span>
+<span id="cb21-6"><a href="#cb21-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb21-7"><a href="#cb21-7" aria-hidden="true" tabindex="-1"></a>obs_v <span class="op">=</span> <span class="fu">Observable</span>(<span class="op">:</span>Vertices, <span class="fu">Graph</span>(<span class="fl">1</span>))</span>
+<span id="cb21-8"><a href="#cb21-8" aria-hidden="true" tabindex="-1"></a>abm_pp <span class="op">=</span> <span class="fu">ABM</span>([prey_birth, prey_death, predation])</span>
+<span id="cb21-9"><a href="#cb21-9" aria-hidden="true" tabindex="-1"></a>result_pp <span class="op">=</span> <span class="fu">run!</span>(abm_pp, <span class="fu">deepcopy</span>(init_pp);</span>
+<span id="cb21-10"><a href="#cb21-10" aria-hidden="true" tabindex="-1"></a>    maxtime<span class="op">=</span><span class="fl">8.0</span>, maxevent<span class="op">=</span><span class="fl">100</span>,</span>
+<span id="cb21-11"><a href="#cb21-11" aria-hidden="true" tabindex="-1"></a>    observables<span class="op">=</span>[obs_v], save_every<span class="op">=</span><span class="fl">1.0</span>)</span>
+<span id="cb21-12"><a href="#cb21-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb21-13"><a href="#cb21-13" aria-hidden="true" tabindex="-1"></a><span class="fu">println</span>(<span class="st">"Predator-prey: </span><span class="sc">$</span>(<span class="fu">length</span>(result_pp))<span class="st"> events"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Predator-prey: 8 events</code></pre>
+</div>
+</div>
+</section>
+<section id="analyze-population-dynamics" class="level3" data-number="4.2">
+<h3 data-number="4.2" class="anchored" data-anchor-id="analyze-population-dynamics"><span class="header-section-number">4.2</span> Analyze Population Dynamics</h3>
+<div id="24" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb23"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a>pp_counts <span class="op">=</span> <span class="fu">Dict</span><span class="dt">{String, Int}</span>()</span>
+<span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> (_, _, name, _) <span class="kw">in</span> result_pp.events</span>
+<span id="cb23-3"><a href="#cb23-3" aria-hidden="true" tabindex="-1"></a>    pp_counts[name] <span class="op">=</span> <span class="fu">get</span>(pp_counts, name, <span class="fl">0</span>) <span class="op">+</span> <span class="fl">1</span></span>
+<span id="cb23-4"><a href="#cb23-4" aria-hidden="true" tabindex="-1"></a><span class="cf">end</span></span>
+<span id="cb23-5"><a href="#cb23-5" aria-hidden="true" tabindex="-1"></a><span class="fu">println</span>(<span class="st">"Event counts:"</span>)</span>
+<span id="cb23-6"><a href="#cb23-6" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> (name, count) <span class="kw">in</span> <span class="fu">sort</span>(<span class="fu">collect</span>(pp_counts))</span>
+<span id="cb23-7"><a href="#cb23-7" aria-hidden="true" tabindex="-1"></a>    <span class="fu">println</span>(<span class="st">"  </span><span class="sc">$</span>name<span class="st">: </span><span class="sc">$</span>count<span class="st">"</span>)</span>
+<span id="cb23-8"><a href="#cb23-8" aria-hidden="true" tabindex="-1"></a><span class="cf">end</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Event counts:
+  Predation: 1
+  PreyBirth: 7</code></pre>
+</div>
+</div>
+<div id="26" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb25"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="fu">println</span>(<span class="st">"</span><span class="sc">\n</span><span class="st">Population over time:"</span>)</span>
+<span id="cb25-2"><a href="#cb25-2" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> (t, snap) <span class="kw">in</span> result_pp.snapshots</span>
+<span id="cb25-3"><a href="#cb25-3" aria-hidden="true" tabindex="-1"></a>    <span class="fu">println</span>(<span class="st">"  t=</span><span class="sc">$</span>(<span class="fu">round</span>(t, digits<span class="op">=</span><span class="fl">1</span>))<span class="st">: vertices=</span><span class="sc">$</span>(snap[<span class="op">:</span>Vertices])<span class="st">"</span>)</span>
+<span id="cb25-4"><a href="#cb25-4" aria-hidden="true" tabindex="-1"></a><span class="cf">end</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>
+Population over time:
+  t=0.0: vertices=10
+  t=1.0: vertices=11
+  t=2.0: vertices=11
+  t=3.0: vertices=13
+  t=4.0: vertices=13
+  t=5.0: vertices=15
+  t=6.0: vertices=15
+  t=7.0: vertices=16
+  t=8.0: vertices=16</code></pre>
+</div>
+</div>
+</section>
+<section id="multiple-replicates" class="level3" data-number="4.3">
+<h3 data-number="4.3" class="anchored" data-anchor-id="multiple-replicates"><span class="header-section-number">4.3</span> Multiple Replicates</h3>
+<div id="28" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb27"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a><span class="fu">println</span>(<span class="st">"Final vertex counts across 5 replicates:"</span>)</span>
+<span id="cb27-2"><a href="#cb27-2" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> rep <span class="kw">in</span> <span class="fl">1</span><span class="op">:</span><span class="fl">5</span></span>
+<span id="cb27-3"><a href="#cb27-3" aria-hidden="true" tabindex="-1"></a>    <span class="bu">Random</span>.<span class="fu">seed!</span>(<span class="fl">42</span> <span class="op">+</span> rep)</span>
+<span id="cb27-4"><a href="#cb27-4" aria-hidden="true" tabindex="-1"></a>    res <span class="op">=</span> <span class="fu">run!</span>(abm_pp, <span class="fu">deepcopy</span>(init_pp); maxtime<span class="op">=</span><span class="fl">8.0</span>, maxevent<span class="op">=</span><span class="fl">100</span>)</span>
+<span id="cb27-5"><a href="#cb27-5" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> !<span class="fu">isempty</span>(res.hist)</span>
+<span id="cb27-6"><a href="#cb27-6" aria-hidden="true" tabindex="-1"></a>        nv <span class="op">=</span> <span class="fu">nparts</span>(<span class="fu">codom</span>(<span class="fu">right</span>(<span class="fu">last</span>(res.hist))), <span class="op">:</span>V)</span>
+<span id="cb27-7"><a href="#cb27-7" aria-hidden="true" tabindex="-1"></a>        <span class="fu">println</span>(<span class="st">"  Rep </span><span class="sc">$</span>rep<span class="st">: </span><span class="sc">$</span>nv<span class="st"> vertices after </span><span class="sc">$</span>(<span class="fu">length</span>(res))<span class="st"> events"</span>)</span>
+<span id="cb27-8"><a href="#cb27-8" aria-hidden="true" tabindex="-1"></a>    <span class="cf">else</span></span>
+<span id="cb27-9"><a href="#cb27-9" aria-hidden="true" tabindex="-1"></a>        <span class="fu">println</span>(<span class="st">"  Rep </span><span class="sc">$</span>rep<span class="st">: no events, </span><span class="sc">$</span>(<span class="fu">nparts</span>(init_pp, <span class="op">:</span>V))<span class="st"> vertices"</span>)</span>
+<span id="cb27-10"><a href="#cb27-10" aria-hidden="true" tabindex="-1"></a>    <span class="cf">end</span></span>
+<span id="cb27-11"><a href="#cb27-11" aria-hidden="true" tabindex="-1"></a><span class="cf">end</span></span>
+<span id="cb27-12"><a href="#cb27-12" aria-hidden="true" tabindex="-1"></a><span class="bu">Random</span>.<span class="fu">seed!</span>(<span class="fl">42</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Final vertex counts across 5 replicates:
+  Rep 1: 19 vertices after 21 events
+  Rep 2: 19 vertices after 17 events
+  Rep 3: 21 vertices after 15 events
+  Rep 4: 20 vertices after 20 events
+  Rep 5: 19 vertices after 9 events</code></pre>
+</div>
+<div class="cell-output cell-output-display" data-execution_count="1">
+<pre><code>TaskLocalRNG()</code></pre>
+</div>
+</div>
+</section>
+</section>
+<section id="example-3-metapopulation-dynamics" class="level2" data-number="5">
+<h2 data-number="5" class="anchored" data-anchor-id="example-3-metapopulation-dynamics"><span class="header-section-number">5</span> Example 3: Metapopulation Dynamics</h2>
+<p>In metapopulation ecology, populations live in discrete <strong>patches</strong> connected by <strong>migration corridors</strong>. Local populations undergo birth and death, while organisms migrate between connected patches.</p>
+<section id="schema-patches-with-populations" class="level3" data-number="5.1">
+<h3 data-number="5.1" class="anchored" data-anchor-id="schema-patches-with-populations"><span class="header-section-number">5.1</span> Schema: Patches with Populations</h3>
+<p>We represent patches as vertices in a graph, with edges representing migration corridors. Each patch has a population of organisms modeled as a count.</p>
+<div id="30" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb30"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a><span class="co"># We use a simple graph: patches = vertices, corridors = edges</span></span>
+<span id="cb30-2"><a href="#cb30-2" aria-hidden="true" tabindex="-1"></a><span class="co"># Organisms within patches are tracked as additional vertices</span></span>
+<span id="cb30-3"><a href="#cb30-3" aria-hidden="true" tabindex="-1"></a><span class="co"># connected to their patch</span></span>
+<span id="cb30-4"><a href="#cb30-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb30-5"><a href="#cb30-5" aria-hidden="true" tabindex="-1"></a><span class="pp">@present</span> <span class="fu">SchMeta</span>(FreeSchema) <span class="cf">begin</span></span>
+<span id="cb30-6"><a href="#cb30-6" aria-hidden="true" tabindex="-1"></a>    Patch<span class="op">::</span><span class="dt">Ob</span>; Corridor<span class="op">::</span><span class="dt">Ob</span>; Organism<span class="op">::</span><span class="dt">Ob</span>; Lives<span class="op">::</span><span class="dt">Ob</span></span>
+<span id="cb30-7"><a href="#cb30-7" aria-hidden="true" tabindex="-1"></a>    src<span class="op">::</span><span class="dt">Hom</span>(Corridor, Patch)</span>
+<span id="cb30-8"><a href="#cb30-8" aria-hidden="true" tabindex="-1"></a>    tgt<span class="op">::</span><span class="dt">Hom</span>(Corridor, Patch)</span>
+<span id="cb30-9"><a href="#cb30-9" aria-hidden="true" tabindex="-1"></a>    patch<span class="op">::</span><span class="dt">Hom</span>(Lives, Patch)</span>
+<span id="cb30-10"><a href="#cb30-10" aria-hidden="true" tabindex="-1"></a>    organism<span class="op">::</span><span class="dt">Hom</span>(Lives, Organism)</span>
+<span id="cb30-11"><a href="#cb30-11" aria-hidden="true" tabindex="-1"></a><span class="cf">end</span></span>
+<span id="cb30-12"><a href="#cb30-12" aria-hidden="true" tabindex="-1"></a><span class="pp">@acset_type</span> <span class="fu">MetaPop</span>(SchMeta)</span>
+<span id="cb30-13"><a href="#cb30-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb30-14"><a href="#cb30-14" aria-hidden="true" tabindex="-1"></a><span class="fu">println</span>(<span class="st">"Metapopulation schema:"</span>)</span>
+<span id="cb30-15"><a href="#cb30-15" aria-hidden="true" tabindex="-1"></a><span class="fu">println</span>(<span class="st">"  Patch — habitat patches"</span>)</span>
+<span id="cb30-16"><a href="#cb30-16" aria-hidden="true" tabindex="-1"></a><span class="fu">println</span>(<span class="st">"  Corridor — migration links between patches"</span>)</span>
+<span id="cb30-17"><a href="#cb30-17" aria-hidden="true" tabindex="-1"></a><span class="fu">println</span>(<span class="st">"  Organism — individual organisms"</span>)</span>
+<span id="cb30-18"><a href="#cb30-18" aria-hidden="true" tabindex="-1"></a><span class="fu">println</span>(<span class="st">"  Lives — relationship linking organisms to patches"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Metapopulation schema:
+  Patch — habitat patches
+  Corridor — migration links between patches
+  Organism — individual organisms
+  Lives — relationship linking organisms to patches</code></pre>
+</div>
+</div>
+</section>
+<section id="build-the-initial-landscape" class="level3" data-number="5.2">
+<h3 data-number="5.2" class="anchored" data-anchor-id="build-the-initial-landscape"><span class="header-section-number">5.2</span> Build the Initial Landscape</h3>
+<p>Create a linear chain of patches (1-2-3-4-5) with organisms distributed across them.</p>
+<div id="32" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb32"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a>n_patches <span class="op">=</span> <span class="fl">5</span></span>
+<span id="cb32-2"><a href="#cb32-2" aria-hidden="true" tabindex="-1"></a>init_organisms <span class="op">=</span> [<span class="fl">10</span>, <span class="fl">5</span>, <span class="fl">8</span>, <span class="fl">3</span>, <span class="fl">12</span>]  <span class="co"># initial organisms per patch</span></span>
+<span id="cb32-3"><a href="#cb32-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb32-4"><a href="#cb32-4" aria-hidden="true" tabindex="-1"></a>init_meta <span class="op">=</span> <span class="fu">MetaPop</span>()</span>
+<span id="cb32-5"><a href="#cb32-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb32-6"><a href="#cb32-6" aria-hidden="true" tabindex="-1"></a><span class="co"># Add patches</span></span>
+<span id="cb32-7"><a href="#cb32-7" aria-hidden="true" tabindex="-1"></a><span class="fu">add_parts!</span>(init_meta, <span class="op">:</span>Patch, n_patches)</span>
+<span id="cb32-8"><a href="#cb32-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb32-9"><a href="#cb32-9" aria-hidden="true" tabindex="-1"></a><span class="co"># Connect patches in a chain: 1↔2↔3↔4↔5</span></span>
+<span id="cb32-10"><a href="#cb32-10" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> i <span class="kw">in</span> <span class="fl">1</span><span class="op">:</span>(n_patches<span class="op">-</span><span class="fl">1</span>)</span>
+<span id="cb32-11"><a href="#cb32-11" aria-hidden="true" tabindex="-1"></a>    <span class="fu">add_part!</span>(init_meta, <span class="op">:</span>Corridor; src<span class="op">=</span>i, tgt<span class="op">=</span>i<span class="op">+</span><span class="fl">1</span>)</span>
+<span id="cb32-12"><a href="#cb32-12" aria-hidden="true" tabindex="-1"></a>    <span class="fu">add_part!</span>(init_meta, <span class="op">:</span>Corridor; src<span class="op">=</span>i<span class="op">+</span><span class="fl">1</span>, tgt<span class="op">=</span>i)</span>
+<span id="cb32-13"><a href="#cb32-13" aria-hidden="true" tabindex="-1"></a><span class="cf">end</span></span>
+<span id="cb32-14"><a href="#cb32-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb32-15"><a href="#cb32-15" aria-hidden="true" tabindex="-1"></a><span class="co"># Add organisms to patches</span></span>
+<span id="cb32-16"><a href="#cb32-16" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> p <span class="kw">in</span> <span class="fl">1</span><span class="op">:</span>n_patches</span>
+<span id="cb32-17"><a href="#cb32-17" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> _ <span class="kw">in</span> <span class="fl">1</span><span class="op">:</span>init_organisms[p]</span>
+<span id="cb32-18"><a href="#cb32-18" aria-hidden="true" tabindex="-1"></a>        o <span class="op">=</span> <span class="fu">add_part!</span>(init_meta, <span class="op">:</span>Organism)</span>
+<span id="cb32-19"><a href="#cb32-19" aria-hidden="true" tabindex="-1"></a>        <span class="fu">add_part!</span>(init_meta, <span class="op">:</span>Lives; patch<span class="op">=</span>p, organism<span class="op">=</span>o)</span>
+<span id="cb32-20"><a href="#cb32-20" aria-hidden="true" tabindex="-1"></a>    <span class="cf">end</span></span>
+<span id="cb32-21"><a href="#cb32-21" aria-hidden="true" tabindex="-1"></a><span class="cf">end</span></span>
+<span id="cb32-22"><a href="#cb32-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb32-23"><a href="#cb32-23" aria-hidden="true" tabindex="-1"></a><span class="fu">println</span>(<span class="st">"Landscape: </span><span class="sc">$</span>n_patches<span class="st"> patches in a chain"</span>)</span>
+<span id="cb32-24"><a href="#cb32-24" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> p <span class="kw">in</span> <span class="fl">1</span><span class="op">:</span>n_patches</span>
+<span id="cb32-25"><a href="#cb32-25" aria-hidden="true" tabindex="-1"></a>    n_org <span class="op">=</span> <span class="fu">count</span>(<span class="op">==</span>(p), init_meta[<span class="op">:</span>patch])</span>
+<span id="cb32-26"><a href="#cb32-26" aria-hidden="true" tabindex="-1"></a>    neighbors <span class="op">=</span> <span class="fu">length</span>(<span class="fu">incident</span>(init_meta, p, <span class="op">:</span>src))</span>
+<span id="cb32-27"><a href="#cb32-27" aria-hidden="true" tabindex="-1"></a>    <span class="fu">println</span>(<span class="st">"  Patch </span><span class="sc">$</span>p<span class="st">: </span><span class="sc">$</span>n_org<span class="st"> organisms, </span><span class="sc">$</span>neighbors<span class="st"> outgoing corridors"</span>)</span>
+<span id="cb32-28"><a href="#cb32-28" aria-hidden="true" tabindex="-1"></a><span class="cf">end</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Landscape: 5 patches in a chain
+  Patch 1: 10 organisms, 1 outgoing corridors
+  Patch 2: 5 organisms, 2 outgoing corridors
+  Patch 3: 8 organisms, 2 outgoing corridors
+  Patch 4: 3 organisms, 2 outgoing corridors
+  Patch 5: 12 organisms, 1 outgoing corridors</code></pre>
+</div>
+</div>
+</section>
+<section id="define-metapopulation-rules" class="level3" data-number="5.3">
+<h3 data-number="5.3" class="anchored" data-anchor-id="define-metapopulation-rules"><span class="header-section-number">5.3</span> Define Metapopulation Rules</h3>
+<section id="local-birth" class="level4" data-number="5.3.1">
+<h4 data-number="5.3.1" class="anchored" data-anchor-id="local-birth"><span class="header-section-number">5.3.1</span> Local Birth</h4>
+<p>An organism in a patch produces offspring in the same patch.</p>
+<div id="34" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb34"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb34-1"><a href="#cb34-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Birth: match an organism-in-patch, create another organism in the same patch</span></span>
+<span id="cb34-2"><a href="#cb34-2" aria-hidden="true" tabindex="-1"></a>L_local_birth <span class="op">=</span> <span class="pp">@acset</span> MetaPop <span class="cf">begin</span></span>
+<span id="cb34-3"><a href="#cb34-3" aria-hidden="true" tabindex="-1"></a>    Patch<span class="op">=</span><span class="fl">1</span>; Organism<span class="op">=</span><span class="fl">1</span>; Lives<span class="op">=</span><span class="fl">1</span>; patch<span class="op">=</span>[<span class="fl">1</span>]; organism<span class="op">=</span>[<span class="fl">1</span>]</span>
+<span id="cb34-4"><a href="#cb34-4" aria-hidden="true" tabindex="-1"></a><span class="cf">end</span></span>
+<span id="cb34-5"><a href="#cb34-5" aria-hidden="true" tabindex="-1"></a>I_local_birth <span class="op">=</span> <span class="pp">@acset</span> MetaPop <span class="cf">begin</span></span>
+<span id="cb34-6"><a href="#cb34-6" aria-hidden="true" tabindex="-1"></a>    Patch<span class="op">=</span><span class="fl">1</span>; Organism<span class="op">=</span><span class="fl">1</span>; Lives<span class="op">=</span><span class="fl">1</span>; patch<span class="op">=</span>[<span class="fl">1</span>]; organism<span class="op">=</span>[<span class="fl">1</span>]</span>
+<span id="cb34-7"><a href="#cb34-7" aria-hidden="true" tabindex="-1"></a><span class="cf">end</span></span>
+<span id="cb34-8"><a href="#cb34-8" aria-hidden="true" tabindex="-1"></a>R_local_birth <span class="op">=</span> <span class="pp">@acset</span> MetaPop <span class="cf">begin</span></span>
+<span id="cb34-9"><a href="#cb34-9" aria-hidden="true" tabindex="-1"></a>    Patch<span class="op">=</span><span class="fl">1</span>; Organism<span class="op">=</span><span class="fl">2</span>; Lives<span class="op">=</span><span class="fl">2</span>; patch<span class="op">=</span>[<span class="fl">1</span>, <span class="fl">1</span>]; organism<span class="op">=</span>[<span class="fl">1</span>, <span class="fl">2</span>]</span>
+<span id="cb34-10"><a href="#cb34-10" aria-hidden="true" tabindex="-1"></a><span class="cf">end</span></span>
+<span id="cb34-11"><a href="#cb34-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb34-12"><a href="#cb34-12" aria-hidden="true" tabindex="-1"></a>local_birth <span class="op">=</span> <span class="fu">ABMRule</span>(<span class="op">:</span>LocalBirth,</span>
+<span id="cb34-13"><a href="#cb34-13" aria-hidden="true" tabindex="-1"></a>    <span class="fu">Rule</span>(<span class="fu">id</span>(L_local_birth),</span>
+<span id="cb34-14"><a href="#cb34-14" aria-hidden="true" tabindex="-1"></a>         <span class="fu">homomorphism</span>(I_local_birth, R_local_birth;</span>
+<span id="cb34-15"><a href="#cb34-15" aria-hidden="true" tabindex="-1"></a>                      initial<span class="op">=</span>(Patch<span class="op">=</span>[<span class="fl">1</span>], Organism<span class="op">=</span>[<span class="fl">1</span>], Lives<span class="op">=</span>[<span class="fl">1</span>]))),</span>
+<span id="cb34-16"><a href="#cb34-16" aria-hidden="true" tabindex="-1"></a>    <span class="fu">ContinuousHazard</span>(<span class="fu">Exponential</span>(<span class="fl">1.0</span> <span class="op">/</span> <span class="fl">0.3</span>)))</span>
+<span id="cb34-17"><a href="#cb34-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb34-18"><a href="#cb34-18" aria-hidden="true" tabindex="-1"></a><span class="fu">println</span>(<span class="st">"Local birth: rate 0.3 per organism"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Local birth: rate 0.3 per organism</code></pre>
+</div>
+</div>
+</section>
+<section id="local-death" class="level4" data-number="5.3.2">
+<h4 data-number="5.3.2" class="anchored" data-anchor-id="local-death"><span class="header-section-number">5.3.2</span> Local Death</h4>
+<p>An organism dies and is removed from its patch.</p>
+<div id="36" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb36"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb36-1"><a href="#cb36-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Death: match an organism-in-patch, remove the organism and the Lives link</span></span>
+<span id="cb36-2"><a href="#cb36-2" aria-hidden="true" tabindex="-1"></a>L_local_death <span class="op">=</span> <span class="pp">@acset</span> MetaPop <span class="cf">begin</span></span>
+<span id="cb36-3"><a href="#cb36-3" aria-hidden="true" tabindex="-1"></a>    Patch<span class="op">=</span><span class="fl">1</span>; Organism<span class="op">=</span><span class="fl">1</span>; Lives<span class="op">=</span><span class="fl">1</span>; patch<span class="op">=</span>[<span class="fl">1</span>]; organism<span class="op">=</span>[<span class="fl">1</span>]</span>
+<span id="cb36-4"><a href="#cb36-4" aria-hidden="true" tabindex="-1"></a><span class="cf">end</span></span>
+<span id="cb36-5"><a href="#cb36-5" aria-hidden="true" tabindex="-1"></a>I_local_death <span class="op">=</span> <span class="pp">@acset</span> MetaPop <span class="cf">begin</span> Patch<span class="op">=</span><span class="fl">1</span> <span class="cf">end</span></span>
+<span id="cb36-6"><a href="#cb36-6" aria-hidden="true" tabindex="-1"></a>R_local_death <span class="op">=</span> <span class="pp">@acset</span> MetaPop <span class="cf">begin</span> Patch<span class="op">=</span><span class="fl">1</span> <span class="cf">end</span></span>
+<span id="cb36-7"><a href="#cb36-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb36-8"><a href="#cb36-8" aria-hidden="true" tabindex="-1"></a>local_death <span class="op">=</span> <span class="fu">ABMRule</span>(<span class="op">:</span>LocalDeath,</span>
+<span id="cb36-9"><a href="#cb36-9" aria-hidden="true" tabindex="-1"></a>    <span class="fu">Rule</span>(<span class="fu">homomorphism</span>(I_local_death, L_local_death; initial<span class="op">=</span>(Patch<span class="op">=</span>[<span class="fl">1</span>],)),</span>
+<span id="cb36-10"><a href="#cb36-10" aria-hidden="true" tabindex="-1"></a>         <span class="fu">id</span>(I_local_death)),</span>
+<span id="cb36-11"><a href="#cb36-11" aria-hidden="true" tabindex="-1"></a>    <span class="fu">ContinuousHazard</span>(<span class="fu">Exponential</span>(<span class="fl">1.0</span> <span class="op">/</span> <span class="fl">0.4</span>)))</span>
+<span id="cb36-12"><a href="#cb36-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb36-13"><a href="#cb36-13" aria-hidden="true" tabindex="-1"></a><span class="fu">println</span>(<span class="st">"Local death: rate 0.4 per organism"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Local death: rate 0.4 per organism</code></pre>
+</div>
+</div>
+</section>
+<section id="migration" class="level4" data-number="5.3.3">
+<h4 data-number="5.3.3" class="anchored" data-anchor-id="migration"><span class="header-section-number">5.3.3</span> Migration</h4>
+<p>An organism moves from one patch to an adjacent patch along a corridor.</p>
+<div id="38" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb38"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb38-1"><a href="#cb38-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Migration: match organism-in-patch and corridor from that patch</span></span>
+<span id="cb38-2"><a href="#cb38-2" aria-hidden="true" tabindex="-1"></a><span class="co"># Result: organism moves to the target patch</span></span>
+<span id="cb38-3"><a href="#cb38-3" aria-hidden="true" tabindex="-1"></a>L_migrate <span class="op">=</span> <span class="pp">@acset</span> MetaPop <span class="cf">begin</span></span>
+<span id="cb38-4"><a href="#cb38-4" aria-hidden="true" tabindex="-1"></a>    Patch<span class="op">=</span><span class="fl">2</span>; Corridor<span class="op">=</span><span class="fl">1</span>; Organism<span class="op">=</span><span class="fl">1</span>; Lives<span class="op">=</span><span class="fl">1</span></span>
+<span id="cb38-5"><a href="#cb38-5" aria-hidden="true" tabindex="-1"></a>    src<span class="op">=</span>[<span class="fl">1</span>]; tgt<span class="op">=</span>[<span class="fl">2</span>]; patch<span class="op">=</span>[<span class="fl">1</span>]; organism<span class="op">=</span>[<span class="fl">1</span>]</span>
+<span id="cb38-6"><a href="#cb38-6" aria-hidden="true" tabindex="-1"></a><span class="cf">end</span></span>
+<span id="cb38-7"><a href="#cb38-7" aria-hidden="true" tabindex="-1"></a>I_migrate <span class="op">=</span> <span class="pp">@acset</span> MetaPop <span class="cf">begin</span></span>
+<span id="cb38-8"><a href="#cb38-8" aria-hidden="true" tabindex="-1"></a>    Patch<span class="op">=</span><span class="fl">2</span>; Corridor<span class="op">=</span><span class="fl">1</span>; Organism<span class="op">=</span><span class="fl">1</span></span>
+<span id="cb38-9"><a href="#cb38-9" aria-hidden="true" tabindex="-1"></a>    src<span class="op">=</span>[<span class="fl">1</span>]; tgt<span class="op">=</span>[<span class="fl">2</span>]</span>
+<span id="cb38-10"><a href="#cb38-10" aria-hidden="true" tabindex="-1"></a><span class="cf">end</span></span>
+<span id="cb38-11"><a href="#cb38-11" aria-hidden="true" tabindex="-1"></a>R_migrate <span class="op">=</span> <span class="pp">@acset</span> MetaPop <span class="cf">begin</span></span>
+<span id="cb38-12"><a href="#cb38-12" aria-hidden="true" tabindex="-1"></a>    Patch<span class="op">=</span><span class="fl">2</span>; Corridor<span class="op">=</span><span class="fl">1</span>; Organism<span class="op">=</span><span class="fl">1</span>; Lives<span class="op">=</span><span class="fl">1</span></span>
+<span id="cb38-13"><a href="#cb38-13" aria-hidden="true" tabindex="-1"></a>    src<span class="op">=</span>[<span class="fl">1</span>]; tgt<span class="op">=</span>[<span class="fl">2</span>]; patch<span class="op">=</span>[<span class="fl">2</span>]; organism<span class="op">=</span>[<span class="fl">1</span>]</span>
+<span id="cb38-14"><a href="#cb38-14" aria-hidden="true" tabindex="-1"></a><span class="cf">end</span></span>
+<span id="cb38-15"><a href="#cb38-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb38-16"><a href="#cb38-16" aria-hidden="true" tabindex="-1"></a>migration <span class="op">=</span> <span class="fu">ABMRule</span>(<span class="op">:</span>Migration,</span>
+<span id="cb38-17"><a href="#cb38-17" aria-hidden="true" tabindex="-1"></a>    <span class="fu">Rule</span>(<span class="fu">homomorphism</span>(I_migrate, L_migrate;</span>
+<span id="cb38-18"><a href="#cb38-18" aria-hidden="true" tabindex="-1"></a>                      initial<span class="op">=</span>(Patch<span class="op">=</span>[<span class="fl">1</span>,<span class="fl">2</span>], Corridor<span class="op">=</span>[<span class="fl">1</span>], Organism<span class="op">=</span>[<span class="fl">1</span>])),</span>
+<span id="cb38-19"><a href="#cb38-19" aria-hidden="true" tabindex="-1"></a>         <span class="fu">homomorphism</span>(I_migrate, R_migrate;</span>
+<span id="cb38-20"><a href="#cb38-20" aria-hidden="true" tabindex="-1"></a>                      initial<span class="op">=</span>(Patch<span class="op">=</span>[<span class="fl">1</span>,<span class="fl">2</span>], Corridor<span class="op">=</span>[<span class="fl">1</span>], Organism<span class="op">=</span>[<span class="fl">1</span>]))),</span>
+<span id="cb38-21"><a href="#cb38-21" aria-hidden="true" tabindex="-1"></a>    <span class="fu">ContinuousHazard</span>(<span class="fu">Exponential</span>(<span class="fl">1.0</span> <span class="op">/</span> <span class="fl">0.1</span>)))</span>
+<span id="cb38-22"><a href="#cb38-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb38-23"><a href="#cb38-23" aria-hidden="true" tabindex="-1"></a><span class="fu">println</span>(<span class="st">"Migration: rate 0.1 per organism-corridor pair"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Migration: rate 0.1 per organism-corridor pair</code></pre>
+</div>
+</div>
+</section>
+</section>
+<section id="run-the-metapopulation-model" class="level3" data-number="5.4">
+<h3 data-number="5.4" class="anchored" data-anchor-id="run-the-metapopulation-model"><span class="header-section-number">5.4</span> Run the Metapopulation Model</h3>
+<div id="40" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb40"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb40-1"><a href="#cb40-1" aria-hidden="true" tabindex="-1"></a>abm_meta <span class="op">=</span> <span class="fu">ABM</span>([local_birth, local_death, migration])</span>
+<span id="cb40-2"><a href="#cb40-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb40-3"><a href="#cb40-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Observable: count organisms</span></span>
+<span id="cb40-4"><a href="#cb40-4" aria-hidden="true" tabindex="-1"></a>obs_organisms <span class="op">=</span> <span class="fu">Observable</span>(<span class="op">:</span>Organisms,</span>
+<span id="cb40-5"><a href="#cb40-5" aria-hidden="true" tabindex="-1"></a>    <span class="pp">@acset</span> MetaPop <span class="cf">begin</span> Organism<span class="op">=</span><span class="fl">1</span> <span class="cf">end</span>)</span>
+<span id="cb40-6"><a href="#cb40-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb40-7"><a href="#cb40-7" aria-hidden="true" tabindex="-1"></a>result_meta <span class="op">=</span> <span class="fu">run!</span>(abm_meta, <span class="fu">deepcopy</span>(init_meta);</span>
+<span id="cb40-8"><a href="#cb40-8" aria-hidden="true" tabindex="-1"></a>    maxtime<span class="op">=</span><span class="fl">30.0</span>, maxevent<span class="op">=</span><span class="fl">5000</span>,</span>
+<span id="cb40-9"><a href="#cb40-9" aria-hidden="true" tabindex="-1"></a>    observables<span class="op">=</span>[obs_organisms], save_every<span class="op">=</span><span class="fl">2.0</span>)</span>
+<span id="cb40-10"><a href="#cb40-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb40-11"><a href="#cb40-11" aria-hidden="true" tabindex="-1"></a><span class="fu">println</span>(<span class="st">"Metapopulation simulation: </span><span class="sc">$</span>(<span class="fu">length</span>(result_meta))<span class="st"> events"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<div class="ansi-escaped-output">
+<pre><span class="ansi-cyan-fg ansi-bold">[ </span><span class="ansi-cyan-fg ansi-bold">Info: </span>Stochastic scheduling algorithm ran out of events
+Metapopulation simulation: 111 events
+</pre>
+</div>
+</div>
+</div>
+</section>
+<section id="analyze-metapopulation-dynamics" class="level3" data-number="5.5">
+<h3 data-number="5.5" class="anchored" data-anchor-id="analyze-metapopulation-dynamics"><span class="header-section-number">5.5</span> Analyze Metapopulation Dynamics</h3>
+<div id="42" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb41"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb41-1"><a href="#cb41-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Event breakdown</span></span>
+<span id="cb41-2"><a href="#cb41-2" aria-hidden="true" tabindex="-1"></a>meta_counts <span class="op">=</span> <span class="fu">Dict</span><span class="dt">{String, Int}</span>()</span>
+<span id="cb41-3"><a href="#cb41-3" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> (_, _, name, _) <span class="kw">in</span> result_meta.events</span>
+<span id="cb41-4"><a href="#cb41-4" aria-hidden="true" tabindex="-1"></a>    meta_counts[name] <span class="op">=</span> <span class="fu">get</span>(meta_counts, name, <span class="fl">0</span>) <span class="op">+</span> <span class="fl">1</span></span>
+<span id="cb41-5"><a href="#cb41-5" aria-hidden="true" tabindex="-1"></a><span class="cf">end</span></span>
+<span id="cb41-6"><a href="#cb41-6" aria-hidden="true" tabindex="-1"></a><span class="fu">println</span>(<span class="st">"Event counts:"</span>)</span>
+<span id="cb41-7"><a href="#cb41-7" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> (name, count) <span class="kw">in</span> <span class="fu">sort</span>(<span class="fu">collect</span>(meta_counts))</span>
+<span id="cb41-8"><a href="#cb41-8" aria-hidden="true" tabindex="-1"></a>    <span class="fu">println</span>(<span class="st">"  </span><span class="sc">$</span>name<span class="st">: </span><span class="sc">$</span>count<span class="st">"</span>)</span>
+<span id="cb41-9"><a href="#cb41-9" aria-hidden="true" tabindex="-1"></a><span class="cf">end</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Event counts:
+  LocalBirth: 29
+  LocalDeath: 67
+  Migration: 15</code></pre>
+</div>
+</div>
+<div id="44" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb43"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb43-1"><a href="#cb43-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Total organism trajectory</span></span>
+<span id="cb43-2"><a href="#cb43-2" aria-hidden="true" tabindex="-1"></a><span class="fu">println</span>(<span class="st">"</span><span class="sc">\n</span><span class="st">Total organisms over time:"</span>)</span>
+<span id="cb43-3"><a href="#cb43-3" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> (t, snap) <span class="kw">in</span> result_meta.snapshots</span>
+<span id="cb43-4"><a href="#cb43-4" aria-hidden="true" tabindex="-1"></a>    <span class="fu">println</span>(<span class="st">"  t=</span><span class="sc">$</span>(<span class="fu">round</span>(t, digits<span class="op">=</span><span class="fl">1</span>))<span class="st">: </span><span class="sc">$</span>(snap[<span class="op">:</span>Organisms])<span class="st"> organisms"</span>)</span>
+<span id="cb43-5"><a href="#cb43-5" aria-hidden="true" tabindex="-1"></a><span class="cf">end</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>
+Total organisms over time:
+  t=0.0: 38 organisms
+  t=2.0: 19 organisms
+  t=4.0: 17 organisms
+  t=6.0: 11 organisms
+  t=8.0: 5 organisms
+  t=10.0: 0 organisms
+  t=12.0: 0 organisms
+  t=14.0: 0 organisms</code></pre>
+</div>
+</div>
+</section>
+<section id="effect-of-network-topology" class="level3" data-number="5.6">
+<h3 data-number="5.6" class="anchored" data-anchor-id="effect-of-network-topology"><span class="header-section-number">5.6</span> Effect of Network Topology</h3>
+<p>Let’s compare the linear chain to a fully connected landscape to see how connectivity affects population persistence.</p>
+<div id="46" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb45"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb45-1"><a href="#cb45-1" aria-hidden="true" tabindex="-1"></a><span class="kw">function</span> <span class="fu">make_landscape</span>(n_patches, init_orgs, connectivity)</span>
+<span id="cb45-2"><a href="#cb45-2" aria-hidden="true" tabindex="-1"></a>    state <span class="op">=</span> <span class="fu">MetaPop</span>()</span>
+<span id="cb45-3"><a href="#cb45-3" aria-hidden="true" tabindex="-1"></a>    <span class="fu">add_parts!</span>(state, <span class="op">:</span>Patch, n_patches)</span>
+<span id="cb45-4"><a href="#cb45-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb45-5"><a href="#cb45-5" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> connectivity <span class="op">==</span> <span class="op">:</span>chain</span>
+<span id="cb45-6"><a href="#cb45-6" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> i <span class="kw">in</span> <span class="fl">1</span><span class="op">:</span>(n_patches<span class="op">-</span><span class="fl">1</span>)</span>
+<span id="cb45-7"><a href="#cb45-7" aria-hidden="true" tabindex="-1"></a>            <span class="fu">add_part!</span>(state, <span class="op">:</span>Corridor; src<span class="op">=</span>i, tgt<span class="op">=</span>i<span class="op">+</span><span class="fl">1</span>)</span>
+<span id="cb45-8"><a href="#cb45-8" aria-hidden="true" tabindex="-1"></a>            <span class="fu">add_part!</span>(state, <span class="op">:</span>Corridor; src<span class="op">=</span>i<span class="op">+</span><span class="fl">1</span>, tgt<span class="op">=</span>i)</span>
+<span id="cb45-9"><a href="#cb45-9" aria-hidden="true" tabindex="-1"></a>        <span class="cf">end</span></span>
+<span id="cb45-10"><a href="#cb45-10" aria-hidden="true" tabindex="-1"></a>    <span class="cf">elseif</span> connectivity <span class="op">==</span> <span class="op">:</span>complete</span>
+<span id="cb45-11"><a href="#cb45-11" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> i <span class="kw">in</span> <span class="fl">1</span><span class="op">:</span>n_patches, j <span class="kw">in</span> <span class="fl">1</span><span class="op">:</span>n_patches</span>
+<span id="cb45-12"><a href="#cb45-12" aria-hidden="true" tabindex="-1"></a>            i <span class="op">!=</span> j <span class="op">&amp;&amp;</span> <span class="fu">add_part!</span>(state, <span class="op">:</span>Corridor; src<span class="op">=</span>i, tgt<span class="op">=</span>j)</span>
+<span id="cb45-13"><a href="#cb45-13" aria-hidden="true" tabindex="-1"></a>        <span class="cf">end</span></span>
+<span id="cb45-14"><a href="#cb45-14" aria-hidden="true" tabindex="-1"></a>    <span class="cf">end</span></span>
+<span id="cb45-15"><a href="#cb45-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb45-16"><a href="#cb45-16" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> p <span class="kw">in</span> <span class="fl">1</span><span class="op">:</span>n_patches</span>
+<span id="cb45-17"><a href="#cb45-17" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> _ <span class="kw">in</span> <span class="fl">1</span><span class="op">:</span>init_orgs[p]</span>
+<span id="cb45-18"><a href="#cb45-18" aria-hidden="true" tabindex="-1"></a>            o <span class="op">=</span> <span class="fu">add_part!</span>(state, <span class="op">:</span>Organism)</span>
+<span id="cb45-19"><a href="#cb45-19" aria-hidden="true" tabindex="-1"></a>            <span class="fu">add_part!</span>(state, <span class="op">:</span>Lives; patch<span class="op">=</span>p, organism<span class="op">=</span>o)</span>
+<span id="cb45-20"><a href="#cb45-20" aria-hidden="true" tabindex="-1"></a>        <span class="cf">end</span></span>
+<span id="cb45-21"><a href="#cb45-21" aria-hidden="true" tabindex="-1"></a>    <span class="cf">end</span></span>
+<span id="cb45-22"><a href="#cb45-22" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> state</span>
+<span id="cb45-23"><a href="#cb45-23" aria-hidden="true" tabindex="-1"></a><span class="kw">end</span></span>
+<span id="cb45-24"><a href="#cb45-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb45-25"><a href="#cb45-25" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> topology <span class="kw">in</span> [<span class="op">:</span>chain, <span class="op">:</span>complete]</span>
+<span id="cb45-26"><a href="#cb45-26" aria-hidden="true" tabindex="-1"></a>    init_orgs <span class="op">=</span> [<span class="fl">10</span>, <span class="fl">5</span>, <span class="fl">8</span>, <span class="fl">3</span>, <span class="fl">12</span>]</span>
+<span id="cb45-27"><a href="#cb45-27" aria-hidden="true" tabindex="-1"></a>    landscape <span class="op">=</span> <span class="fu">make_landscape</span>(<span class="fl">5</span>, init_orgs, topology)</span>
+<span id="cb45-28"><a href="#cb45-28" aria-hidden="true" tabindex="-1"></a>    n_corridors <span class="op">=</span> <span class="fu">nparts</span>(landscape, <span class="op">:</span>Corridor)</span>
+<span id="cb45-29"><a href="#cb45-29" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb45-30"><a href="#cb45-30" aria-hidden="true" tabindex="-1"></a>    res <span class="op">=</span> <span class="fu">run!</span>(abm_meta, <span class="fu">deepcopy</span>(landscape);</span>
+<span id="cb45-31"><a href="#cb45-31" aria-hidden="true" tabindex="-1"></a>        maxtime<span class="op">=</span><span class="fl">20.0</span>, maxevent<span class="op">=</span><span class="fl">3000</span>,</span>
+<span id="cb45-32"><a href="#cb45-32" aria-hidden="true" tabindex="-1"></a>        observables<span class="op">=</span>[obs_organisms], save_every<span class="op">=</span><span class="fl">5.0</span>)</span>
+<span id="cb45-33"><a href="#cb45-33" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb45-34"><a href="#cb45-34" aria-hidden="true" tabindex="-1"></a>    final_count <span class="op">=</span> <span class="fu">isempty</span>(res.snapshots) ? <span class="fu">sum</span>(init_orgs) <span class="op">:</span> <span class="fu">last</span>(res.snapshots)[<span class="fl">2</span>][<span class="op">:</span>Organisms]</span>
+<span id="cb45-35"><a href="#cb45-35" aria-hidden="true" tabindex="-1"></a>    <span class="fu">println</span>(<span class="st">"</span><span class="sc">$</span>topology<span class="st"> network (</span><span class="sc">$</span>n_corridors<span class="st"> corridors): final organisms = </span><span class="sc">$</span>final_count<span class="st"> after </span><span class="sc">$</span>(<span class="fu">length</span>(res))<span class="st"> events"</span>)</span>
+<span id="cb45-36"><a href="#cb45-36" aria-hidden="true" tabindex="-1"></a><span class="cf">end</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>chain network (8 corridors): final organisms = 5 after 375 events
+complete network (20 corridors): final organisms = 6 after 396 events</code></pre>
+</div>
+</div>
+</section>
+<section id="patch-level-analysis" class="level3" data-number="5.7">
+<h3 data-number="5.7" class="anchored" data-anchor-id="patch-level-analysis"><span class="header-section-number">5.7</span> Patch-Level Analysis</h3>
+<p>We can examine the final distribution of organisms across patches.</p>
+<div id="48" class="cell" data-execution_count="1">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb47"><pre class="sourceCode julia code-with-copy"><code class="sourceCode julia"><span id="cb47-1"><a href="#cb47-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Run a fresh simulation and examine final state</span></span>
+<span id="cb47-2"><a href="#cb47-2" aria-hidden="true" tabindex="-1"></a>init_analysis <span class="op">=</span> <span class="fu">make_landscape</span>(<span class="fl">5</span>, [<span class="fl">10</span>, <span class="fl">5</span>, <span class="fl">8</span>, <span class="fl">3</span>, <span class="fl">12</span>], <span class="op">:</span>chain)</span>
+<span id="cb47-3"><a href="#cb47-3" aria-hidden="true" tabindex="-1"></a>res_analysis <span class="op">=</span> <span class="fu">run!</span>(abm_meta, <span class="fu">deepcopy</span>(init_analysis);</span>
+<span id="cb47-4"><a href="#cb47-4" aria-hidden="true" tabindex="-1"></a>    maxtime<span class="op">=</span><span class="fl">20.0</span>, maxevent<span class="op">=</span><span class="fl">3000</span>, record_history<span class="op">=</span><span class="cn">true</span>)</span>
+<span id="cb47-5"><a href="#cb47-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb47-6"><a href="#cb47-6" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> !<span class="fu">isempty</span>(res_analysis.hist)</span>
+<span id="cb47-7"><a href="#cb47-7" aria-hidden="true" tabindex="-1"></a>    final_state <span class="op">=</span> <span class="fu">codom</span>(<span class="fu">right</span>(<span class="fu">last</span>(res_analysis.hist)))</span>
+<span id="cb47-8"><a href="#cb47-8" aria-hidden="true" tabindex="-1"></a>    <span class="fu">println</span>(<span class="st">"Final patch populations:"</span>)</span>
+<span id="cb47-9"><a href="#cb47-9" aria-hidden="true" tabindex="-1"></a>    <span class="cf">for</span> p <span class="kw">in</span> <span class="fl">1</span><span class="op">:</span><span class="fu">nparts</span>(final_state, <span class="op">:</span>Patch)</span>
+<span id="cb47-10"><a href="#cb47-10" aria-hidden="true" tabindex="-1"></a>        n_org <span class="op">=</span> <span class="fu">count</span>(<span class="op">==</span>(p), final_state[<span class="op">:</span>patch])</span>
+<span id="cb47-11"><a href="#cb47-11" aria-hidden="true" tabindex="-1"></a>        <span class="fu">println</span>(<span class="st">"  Patch </span><span class="sc">$</span>p<span class="st">: </span><span class="sc">$</span>n_org<span class="st"> organisms"</span>)</span>
+<span id="cb47-12"><a href="#cb47-12" aria-hidden="true" tabindex="-1"></a>    <span class="cf">end</span></span>
+<span id="cb47-13"><a href="#cb47-13" aria-hidden="true" tabindex="-1"></a>    <span class="fu">println</span>(<span class="st">"Total: </span><span class="sc">$</span>(<span class="fu">nparts</span>(final_state, <span class="op">:</span>Organism))<span class="st"> organisms"</span>)</span>
+<span id="cb47-14"><a href="#cb47-14" aria-hidden="true" tabindex="-1"></a><span class="cf">else</span></span>
+<span id="cb47-15"><a href="#cb47-15" aria-hidden="true" tabindex="-1"></a>    <span class="fu">println</span>(<span class="st">"No events occurred"</span>)</span>
+<span id="cb47-16"><a href="#cb47-16" aria-hidden="true" tabindex="-1"></a><span class="cf">end</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Final patch populations:
+  Patch 1: 2 organisms
+  Patch 2: 2 organisms
+  Patch 3: 1 organisms
+  Patch 4: 0 organisms
+  Patch 5: 0 organisms
+Total: 5 organisms</code></pre>
+</div>
+</div>
+</section>
+</section>
+<section id="key-ecological-modeling-patterns" class="level2" data-number="6">
+<h2 data-number="6" class="anchored" data-anchor-id="key-ecological-modeling-patterns"><span class="header-section-number">6</span> Key Ecological Modeling Patterns</h2>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>Pattern</th>
+<th>AlgebraicABMs Technique</th>
+<th>Example</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Birth</td>
+<td>Vertex creation via Rule</td>
+<td><code>Graph(1) → Graph(2)</code></td>
+</tr>
+<tr class="even">
+<td>Death</td>
+<td>Vertex deletion via Rule</td>
+<td><code>Graph(1) → Graph(0)</code></td>
+</tr>
+<tr class="odd">
+<td>Immigration</td>
+<td>Creation from empty</td>
+<td><code>Graph(0) → Graph(1)</code></td>
+</tr>
+<tr class="even">
+<td>Type-dependent rates</td>
+<td><code>ClosureState</code> timer</td>
+<td>Rate = 0 if wrong type</td>
+</tr>
+<tr class="odd">
+<td>Spatial interaction</td>
+<td>Edge in pattern</td>
+<td>Predation requires edge</td>
+</tr>
+<tr class="even">
+<td>Migration</td>
+<td>Edge-dependent rewrite</td>
+<td>Move organism along edge</td>
+</tr>
+<tr class="odd">
+<td>Population tracking</td>
+<td><code>Observable</code></td>
+<td>Count homomorphisms</td>
+</tr>
+<tr class="even">
+<td>Habitat structure</td>
+<td>Graph topology</td>
+<td>Chain vs.&nbsp;complete network</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="summary" class="level2" data-number="7">
+<h2 data-number="7" class="anchored" data-anchor-id="summary"><span class="header-section-number">7</span> Summary</h2>
+<p>This vignette demonstrated how AlgebraicABMs naturally models ecological systems:</p>
+<ol type="1">
+<li><p><strong>Birth-Death-Immigration</strong>: The simplest model validates against known analytical results (<span class="math inline">\(E[N] = \lambda / (d-b)\)</span>). Three rules with constant rates produce realistic stochastic population dynamics.</p></li>
+<li><p><strong>Predator-Prey</strong>: Typed vertices allow multiple species on a shared graph. State-dependent timers (<code>ClosureState</code>) enable type-specific rates, and edges enforce spatial predation requirements.</p></li>
+<li><p><strong>Metapopulation</strong>: Richer schemas (Patch, Organism, Lives, Corridor) capture multi-level ecological structure. Migration rules move organisms between connected patches, and network topology influences population persistence.</p></li>
+</ol>
+<p>The algebraic rewriting framework ensures that all events are compositional and mathematically well-defined, while competing clocks provide exact stochastic simulation.</p>
+</section>
+
+</main>
+<!-- /main column -->
+<script id="quarto-html-after-body" type="application/javascript">
+  window.document.addEventListener("DOMContentLoaded", function (event) {
+    const icon = "";
+    const anchorJS = new window.AnchorJS();
+    anchorJS.options = {
+      placement: 'right',
+      icon: icon
+    };
+    anchorJS.add('.anchored');
+    const isCodeAnnotation = (el) => {
+      for (const clz of el.classList) {
+        if (clz.startsWith('code-annotation-')) {                     
+          return true;
+        }
+      }
+      return false;
+    }
+    const onCopySuccess = function(e) {
+      // button target
+      const button = e.trigger;
+      // don't keep focus
+      button.blur();
+      // flash "checked"
+      button.classList.add('code-copy-button-checked');
+      var currentTitle = button.getAttribute("title");
+      button.setAttribute("title", "Copied!");
+      let tooltip;
+      if (window.bootstrap) {
+        button.setAttribute("data-bs-toggle", "tooltip");
+        button.setAttribute("data-bs-placement", "left");
+        button.setAttribute("data-bs-title", "Copied!");
+        tooltip = new bootstrap.Tooltip(button, 
+          { trigger: "manual", 
+            customClass: "code-copy-button-tooltip",
+            offset: [0, -8]});
+        tooltip.show();    
+      }
+      setTimeout(function() {
+        if (tooltip) {
+          tooltip.hide();
+          button.removeAttribute("data-bs-title");
+          button.removeAttribute("data-bs-toggle");
+          button.removeAttribute("data-bs-placement");
+        }
+        button.setAttribute("title", currentTitle);
+        button.classList.remove('code-copy-button-checked');
+      }, 1000);
+      // clear code selection
+      e.clearSelection();
+    }
+    const getTextToCopy = function(trigger) {
+      const outerScaffold = trigger.parentElement.cloneNode(true);
+      const codeEl = outerScaffold.querySelector('code');
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+    }
+    const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+      text: getTextToCopy
+    });
+    clipboard.on('success', onCopySuccess);
+    if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+      const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+        text: getTextToCopy,
+        container: window.document.getElementById('quarto-embedded-source-code-modal')
+      });
+      clipboardModal.on('success', onCopySuccess);
+    }
+      var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+      var mailtoRegex = new RegExp(/^mailto:/);
+        var filterRegex = new RegExp('/' + window.location.host + '/');
+      var isInternal = (href) => {
+          return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+      }
+      // Inspect non-navigation links and adorn them if external
+     var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+      for (var i=0; i<links.length; i++) {
+        const link = links[i];
+        if (!isInternal(link.href)) {
+          // undo the damage that might have been done by quarto-nav.js in the case of
+          // links that we want to consider external
+          if (link.dataset.originalHref !== undefined) {
+            link.href = link.dataset.originalHref;
+          }
+        }
+      }
+    function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+      const config = {
+        allowHTML: true,
+        maxWidth: 500,
+        delay: 100,
+        arrow: false,
+        appendTo: function(el) {
+            return el.parentElement;
+        },
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'quarto',
+        placement: 'bottom-start',
+      };
+      if (contentFn) {
+        config.content = contentFn;
+      }
+      if (onTriggerFn) {
+        config.onTrigger = onTriggerFn;
+      }
+      if (onUntriggerFn) {
+        config.onUntrigger = onUntriggerFn;
+      }
+      window.tippy(el, config); 
+    }
+    const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+    for (var i=0; i<noterefs.length; i++) {
+      const ref = noterefs[i];
+      tippyHover(ref, function() {
+        // use id or data attribute instead here
+        let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+        try { href = new URL(href).hash; } catch {}
+        const id = href.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note) {
+          return note.innerHTML;
+        } else {
+          return "";
+        }
+      });
+    }
+    const xrefs = window.document.querySelectorAll('a.quarto-xref');
+    const processXRef = (id, note) => {
+      // Strip column container classes
+      const stripColumnClz = (el) => {
+        el.classList.remove("page-full", "page-columns");
+        if (el.children) {
+          for (const child of el.children) {
+            stripColumnClz(child);
+          }
+        }
+      }
+      stripColumnClz(note)
+      if (id === null || id.startsWith('sec-')) {
+        // Special case sections, only their first couple elements
+        const container = document.createElement("div");
+        if (note.children && note.children.length > 2) {
+          container.appendChild(note.children[0].cloneNode(true));
+          for (let i = 1; i < note.children.length; i++) {
+            const child = note.children[i];
+            if (child.tagName === "P" && child.innerText === "") {
+              continue;
+            } else {
+              container.appendChild(child.cloneNode(true));
+              break;
+            }
+          }
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(container);
+          }
+          return container.innerHTML
+        } else {
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(note);
+          }
+          return note.innerHTML;
+        }
+      } else {
+        // Remove any anchor links if they are present
+        const anchorLink = note.querySelector('a.anchorjs-link');
+        if (anchorLink) {
+          anchorLink.remove();
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        if (note.classList.contains("callout")) {
+          return note.outerHTML;
+        } else {
+          return note.innerHTML;
+        }
+      }
+    }
+    for (var i=0; i<xrefs.length; i++) {
+      const xref = xrefs[i];
+      tippyHover(xref, undefined, function(instance) {
+        instance.disable();
+        let url = xref.getAttribute('href');
+        let hash = undefined; 
+        if (url.startsWith('#')) {
+          hash = url;
+        } else {
+          try { hash = new URL(url).hash; } catch {}
+        }
+        if (hash) {
+          const id = hash.replace(/^#\/?/, "");
+          const note = window.document.getElementById(id);
+          if (note !== null) {
+            try {
+              const html = processXRef(id, note.cloneNode(true));
+              instance.setContent(html);
+            } finally {
+              instance.enable();
+              instance.show();
+            }
+          } else {
+            // See if we can fetch this
+            fetch(url.split('#')[0])
+            .then(res => res.text())
+            .then(html => {
+              const parser = new DOMParser();
+              const htmlDoc = parser.parseFromString(html, "text/html");
+              const note = htmlDoc.getElementById(id);
+              if (note !== null) {
+                const html = processXRef(id, note);
+                instance.setContent(html);
+              } 
+            }).finally(() => {
+              instance.enable();
+              instance.show();
+            });
+          }
+        } else {
+          // See if we can fetch a full url (with no hash to target)
+          // This is a special case and we should probably do some content thinning / targeting
+          fetch(url)
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.querySelector('main.content');
+            if (note !== null) {
+              // This should only happen for chapter cross references
+              // (since there is no id in the URL)
+              // remove the first header
+              if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+                note.children[0].remove();
+              }
+              const html = processXRef(null, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      }, function(instance) {
+      });
+    }
+        let selectedAnnoteEl;
+        const selectorForAnnotation = ( cell, annotation) => {
+          let cellAttr = 'data-code-cell="' + cell + '"';
+          let lineAttr = 'data-code-annotation="' +  annotation + '"';
+          const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+          return selector;
+        }
+        const selectCodeLines = (annoteEl) => {
+          const doc = window.document;
+          const targetCell = annoteEl.getAttribute("data-target-cell");
+          const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+          const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+          const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+          const lineIds = lines.map((line) => {
+            return targetCell + "-" + line;
+          })
+          let top = null;
+          let height = null;
+          let parent = null;
+          if (lineIds.length > 0) {
+              //compute the position of the single el (top and bottom and make a div)
+              const el = window.document.getElementById(lineIds[0]);
+              top = el.offsetTop;
+              height = el.offsetHeight;
+              parent = el.parentElement.parentElement;
+            if (lineIds.length > 1) {
+              const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+              const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+              height = bottom - top;
+            }
+            if (top !== null && height !== null && parent !== null) {
+              // cook up a div (if necessary) and position it 
+              let div = window.document.getElementById("code-annotation-line-highlight");
+              if (div === null) {
+                div = window.document.createElement("div");
+                div.setAttribute("id", "code-annotation-line-highlight");
+                div.style.position = 'absolute';
+                parent.appendChild(div);
+              }
+              div.style.top = top - 2 + "px";
+              div.style.height = height + 4 + "px";
+              div.style.left = 0;
+              let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+              if (gutterDiv === null) {
+                gutterDiv = window.document.createElement("div");
+                gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+                gutterDiv.style.position = 'absolute';
+                const codeCell = window.document.getElementById(targetCell);
+                const gutter = codeCell.querySelector('.code-annotation-gutter');
+                gutter.appendChild(gutterDiv);
+              }
+              gutterDiv.style.top = top - 2 + "px";
+              gutterDiv.style.height = height + 4 + "px";
+            }
+            selectedAnnoteEl = annoteEl;
+          }
+        };
+        const unselectCodeLines = () => {
+          const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+          elementsIds.forEach((elId) => {
+            const div = window.document.getElementById(elId);
+            if (div) {
+              div.remove();
+            }
+          });
+          selectedAnnoteEl = undefined;
+        };
+          // Handle positioning of the toggle
+      window.addEventListener(
+        "resize",
+        throttle(() => {
+          elRect = undefined;
+          if (selectedAnnoteEl) {
+            selectCodeLines(selectedAnnoteEl);
+          }
+        }, 10)
+      );
+      function throttle(fn, ms) {
+      let throttle = false;
+      let timer;
+        return (...args) => {
+          if(!throttle) { // first call gets through
+              fn.apply(this, args);
+              throttle = true;
+          } else { // all the others get throttled
+              if(timer) clearTimeout(timer); // cancel #2
+              timer = setTimeout(() => {
+                fn.apply(this, args);
+                timer = throttle = false;
+              }, ms);
+          }
+        };
+      }
+        // Attach click handler to the DT
+        const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+        for (const annoteDlNode of annoteDls) {
+          annoteDlNode.addEventListener('click', (event) => {
+            const clickedEl = event.target;
+            if (clickedEl !== selectedAnnoteEl) {
+              unselectCodeLines();
+              const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+              if (activeEl) {
+                activeEl.classList.remove('code-annotation-active');
+              }
+              selectCodeLines(clickedEl);
+              clickedEl.classList.add('code-annotation-active');
+            } else {
+              // Unselect the line
+              unselectCodeLines();
+              clickedEl.classList.remove('code-annotation-active');
+            }
+          });
+        }
+    const findCites = (el) => {
+      const parentEl = el.parentElement;
+      if (parentEl) {
+        const cites = parentEl.dataset.cites;
+        if (cites) {
+          return {
+            el,
+            cites: cites.split(' ')
+          };
+        } else {
+          return findCites(el.parentElement)
+        }
+      } else {
+        return undefined;
+      }
+    };
+    var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+    for (var i=0; i<bibliorefs.length; i++) {
+      const ref = bibliorefs[i];
+      const citeInfo = findCites(ref);
+      if (citeInfo) {
+        tippyHover(citeInfo.el, function() {
+          var popup = window.document.createElement('div');
+          citeInfo.cites.forEach(function(cite) {
+            var citeDiv = window.document.createElement('div');
+            citeDiv.classList.add('hanging-indent');
+            citeDiv.classList.add('csl-entry');
+            var biblioDiv = window.document.getElementById('ref-' + cite);
+            if (biblioDiv) {
+              citeDiv.innerHTML = biblioDiv.innerHTML;
+            }
+            popup.appendChild(citeDiv);
+          });
+          return popup.innerHTML;
+        });
+      }
+    }
+  });
+  </script>
+</div> <!-- /content -->
+
+
+
+
+</body></html>
