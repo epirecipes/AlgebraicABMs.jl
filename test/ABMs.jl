@@ -131,8 +131,56 @@ init = @acset LSet begin X=2; f=[1.1, 2.2] end
 
 # res = run!(abm, init, maxevent=2)
 
+# Spatiality test (#12)
+#######################
 
+@present SchSpatial(FreeSchema) begin
+  Agent::Ob
+  Coord::AttrType
+  px::Attr(Agent, Coord)
+  py::Attr(Agent, Coord)
+end
+@acset_type SpatialSet(SchSpatial, part_type=BitSetParts)
 
+@testset "Spatial utilities" begin
+  state = SpatialSet{Float64}()
+  add_parts!(state, :Agent, 4; px=[0.0, 3.0, 0.0, 10.0], py=[0.0, 4.0, 1.0, 10.0])
+
+  # positions: extract position matrix
+  pos = positions(state, :Agent, [:px, :py])
+  @test size(pos) == (2, 4)
+  @test pos[:, 1] == [0.0, 0.0]
+  @test pos[:, 2] == [3.0, 4.0]
+
+  # within_radius: agent 1 at origin
+  # Agent 2 at (3,4) → distance 5.0
+  # Agent 3 at (0,1) → distance 1.0
+  # Agent 4 at (10,10) → distance ~14.1
+  near1 = within_radius(state, 1, 5.0, :Agent, [:px, :py])
+  @test 3 ∈ near1          # distance 1.0 ≤ 5.0
+  @test 2 ∈ near1          # distance 5.0 ≤ 5.0
+  @test 4 ∉ near1          # distance ~14.1 > 5.0
+  @test 1 ∉ near1          # exclude_self
+
+  near1_inc = within_radius(state, 1, 5.0, :Agent, [:px, :py]; exclude_self=false)
+  @test 1 ∈ near1_inc
+
+  close = within_radius(state, 1, 2.0, :Agent, [:px, :py])
+  @test close == [3]
+
+  # pairwise_distances
+  D = pairwise_distances(state, :Agent, [:px, :py])
+  @test size(D) == (4, 4)
+  @test D[1, 1] == 0.0
+  @test D[1, 2] ≈ 5.0
+  @test D[1, 3] ≈ 1.0
+  @test all(D[i, j] ≈ D[j, i] for i in 1:4, j in 1:4)
+
+  # empty case
+  empty_state = SpatialSet{Float64}()
+  pos_empty = positions(empty_state, :Agent, [:px, :py])
+  @test size(pos_empty) == (2, 0)
+end
 
 
 end # module

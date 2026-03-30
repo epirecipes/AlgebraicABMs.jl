@@ -1,8 +1,8 @@
 name = "AlgebraicABMs"
 uuid = "5a5e3447-9604-46e6-8d91-cb86f5f51721"
 license = "MIT"
-authors = ["Kris Brown <kris@topos.institute>"]
 version = "0.0.1"
+authors = ["Kris Brown <kris@topos.institute>"]
 
 [deps]
 AlgebraicRewriting = "725a01d3-f174-5bbd-84e1-b9417bad95d9"

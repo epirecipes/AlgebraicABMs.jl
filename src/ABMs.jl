@@ -2,7 +2,8 @@
 module ABMs
 
 export ABM, ABMRule, run!, DiscreteHazard, ContinuousHazard, FullClosure, 
-       ClosureState, ClosureTime, RawODE, ABMFlow, filter, push!, copy, length
+       ClosureState, ClosureTime, RawODE, ABMFlow, filter, push!, copy, length,
+       within_radius, pairwise_distances, positions
 
 using Distributions, CompetingClocks, Random
 using DataStructures: DefaultDict
@@ -604,6 +605,83 @@ function run!(abm::ABM, rt::RuntimeABM, output::Traj;
     end
   end
   return output
+end
+
+# Spatial utilities
+###################
+
+"""
+    positions(state::ACSet, ob::Symbol, attrs::Vector{Symbol})
+
+Extract position matrix from an ACSet. Returns a `D × N` matrix where `D` is
+the number of spatial dimensions (length of `attrs`) and `N` is the number of
+parts of type `ob`.
+
+# Example
+```julia
+# Schema with :X object and :px, :py attributes
+pos = positions(state, :X, [:px, :py])  # 2 × nparts(state, :X)
+```
+"""
+function positions(state::ACSet, ob::Symbol, attrs::Vector{Symbol})
+  n = nparts(state, ob)
+  n == 0 && return Matrix{Float64}(undef, length(attrs), 0)
+  hcat([Float64.(subpart(state, a)) for a in attrs]...)'
+end
+
+"""
+    within_radius(state::ACSet, i::Int, r::Real, ob::Symbol, attrs::Vector{Symbol};
+                  exclude_self=true)
+
+Find all parts of type `ob` within Euclidean distance `r` of part `i`.
+Position is determined by the attribute columns listed in `attrs`.
+
+Returns a vector of part indices.
+
+# Example
+```julia
+# Find all agents within distance 5.0 of agent 3
+neighbors = within_radius(state, 3, 5.0, :Agent, [:x, :y])
+```
+"""
+function within_radius(state::ACSet, i::Int, r::Real, ob::Symbol, 
+                       attrs::Vector{Symbol}; exclude_self::Bool=true)
+  pos = positions(state, ob, attrs)
+  n = size(pos, 2)
+  (i < 1 || i > n) && return Int[]
+  pi = pos[:, i]
+  r2 = r * r
+  result = Int[]
+  for j in 1:n
+    (exclude_self && j == i) && continue
+    d2 = sum((pos[k, j] - pi[k])^2 for k in axes(pos, 1))
+    d2 <= r2 && push!(result, j)
+  end
+  return result
+end
+
+"""
+    pairwise_distances(state::ACSet, ob::Symbol, attrs::Vector{Symbol})
+
+Compute pairwise Euclidean distance matrix for all parts of type `ob`.
+Returns an `N × N` symmetric matrix.
+
+# Example
+```julia
+D = pairwise_distances(state, :Agent, [:x, :y])
+# D[i,j] is the distance between agents i and j
+```
+"""
+function pairwise_distances(state::ACSet, ob::Symbol, attrs::Vector{Symbol})
+  pos = positions(state, ob, attrs)
+  n = size(pos, 2)
+  D = zeros(Float64, n, n)
+  for i in 1:n, j in (i+1):n
+    d = sqrt(sum((pos[k, i] - pos[k, j])^2 for k in axes(pos, 1)))
+    D[i, j] = d
+    D[j, i] = d
+  end
+  return D
 end
 
 end # module
