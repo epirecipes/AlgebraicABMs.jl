@@ -655,7 +655,7 @@ mutable struct RuntimeABM
   const names::Dict{Symbol, Int}
   prob::ODEProblem
   probmap::Vector{Pair{Symbol, Int}}
-  probdict::Dict{Symbol, Dict{Int, Int}}
+  probdict::Dict{Symbol, Dict{Tuple{Symbol, Int}, Int}}
 
   function RuntimeABM(abm::ABM, init::T; sampler=default_sampler) where T<:ACSet
     # Create the runtime
@@ -792,14 +792,15 @@ is_conditional(iv::Intervention) = !isnothing(iv.predicate)
 """
 Construct an ODE for a given ACSet state. For each flow, find all matches of the 
 flow's pattern in the state. Each match contributes ODE variables corresponding 
-to the flow's `mapping`. The returned `probmap` tracks which (AttrType, part_index) 
-each ODE variable corresponds to, and `probdict` provides reverse lookup.
+to the flow's `mapping`. The returned `probmap` tracks which (attribute, part_index) 
+each ODE variable corresponds to, and `probdict` provides reverse lookup by
+attribute type and part.
 """
 function mk_prob(abm::ABM, state::ACSet)
   isempty(abm.dyn) && return (ODEProblem((_,_,_,_)->0, 0, (0.,1.)), [], Dict())
   
-  probmap = Pair{Symbol, Int}[]       # ODE index → (attr_type, part_index)
-  probdict = Dict{Symbol, Dict{Int, Int}}()  # attr_type → part_index → ODE index
+  probmap = Pair{Symbol, Int}[]       # ODE index → (attr_name, part_index)
+  probdict = Dict{Symbol, Dict{Tuple{Symbol, Int}, Int}}()  # attr_type → (attr_name, part_index) → ODE index
   dynam_fns = Function[]              # dynamics function for each ODE variable
 
   S = acset_schema(state)
@@ -821,11 +822,12 @@ function mk_prob(abm::ABM, state::ACSet)
             if val isa AttrVar && val.val == pat_idx
               state_part = m[ob](p)
               if !haskey(probdict, attr_sym)
-                probdict[attr_sym] = Dict{Int, Int}()
+                probdict[attr_sym] = Dict{Tuple{Symbol, Int}, Int}()
               end
-              if !haskey(probdict[attr_sym], state_part)
-                push!(probmap, attr_sym => state_part)
-                probdict[attr_sym][state_part] = length(probmap)
+              lookup_key = (aname, state_part)
+              if !haskey(probdict[attr_sym], lookup_key)
+                push!(probmap, aname => state_part)
+                probdict[attr_sym][lookup_key] = length(probmap)
                 push!(dynam_fns, flow.dyn.dynam[map_idx])
               end
               found = true
@@ -842,11 +844,8 @@ function mk_prob(abm::ABM, state::ACSet)
   
   # Build initial condition from current state attribute values
   u0 = Float64[]
-  for (attr_sym, state_part) in probmap
-    for (aname, ob) in attr_lookup[attr_sym]
-      push!(u0, Float64(state[state_part, aname]))
-      break
-    end
+  for (attr_name, state_part) in probmap
+    push!(u0, Float64(state[state_part, attr_name]))
   end
   
   # Build the ODE function
@@ -865,15 +864,9 @@ end
 Write ODE solution values back into the ACSet state attributes.
 """
 function write_ode_to_state!(state::ACSet, u::AbstractVector, 
-                             probmap::Vector{Pair{Symbol, Int}})
-  S = acset_schema(state)
-  attr_lookup = Dict{Symbol, Tuple{Symbol, Symbol}}()
-  for (aname, ob, atype) in attrs(S)
-    attr_lookup[atype] = (aname, ob)
-  end
-  for (i, (attr_sym, state_part)) in enumerate(probmap)
-    aname, ob = attr_lookup[attr_sym]
-    set_subpart!(state, state_part, aname, u[i])
+                              probmap::Vector{Pair{Symbol, Int}})
+  for (i, (attr_name, state_part)) in enumerate(probmap)
+    set_subpart!(state, state_part, attr_name, u[i])
   end
 end
 
