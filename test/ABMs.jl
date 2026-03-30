@@ -131,8 +131,69 @@ init = @acset LSet begin X=2; f=[1.1, 2.2] end
 
 # res = run!(abm, init, maxevent=2)
 
+# Calibration / particle filtering test (#13)
+##############################################
 
+using Distributions: Exponential, logpdf, Poisson
+using AlgebraicABMs.ABMs: _state_at_time, _systematic_resample
 
+@testset "Calibration utilities" begin
+  # Simple birth model: vertices duplicate at rate 1.0
+  v1 = Graph(1)
+  v2 = Graph(2)
+  dup = ABMRule(:dup, 
+    Rule(id(v1), homomorphism(v1, v2; initial=(V=[1],))),
+    ContinuousHazard(1.0))
+  abm = ABM([dup])
+  init = @acset Graph begin V=2 end
+
+  # Test _state_at_time
+  traj = run!(abm, init; maxevent=5)
+  s0 = _state_at_time(traj, 0.0)
+  @test nparts(s0, :V) == 2
+  if !isempty(traj.events)
+    t_last = traj.events[end][1]
+    s_end = _state_at_time(traj, t_last + 1.0)
+    @test nparts(s_end, :V) == 7  # 2 initial + 5 duplications
+  end
+
+  # Test _systematic_resample
+  parts = [1, 2, 3, 4]
+  weights = [0.7, 0.1, 0.1, 0.1]
+  resampled = _systematic_resample(parts, weights)
+  @test length(resampled) == 4
+  # High-weight particle should appear more often
+  @test count(==(1), resampled) >= 1
+
+  # Test log_likelihood
+  obs_times = [traj.events[end][1]]
+  obs_data = [nparts(codom(right(traj.hist[end])), :V)]
+  ll = log_likelihood(traj, obs_data,
+    (state, t) -> nparts(state, :V),
+    (obs, sim) -> obs == sim ? 0.0 : -1000.0;
+    times=obs_times)
+  @test ll ≈ 0.0  # exact match
+
+  # Test particle_filter runs
+  obs = [3]
+  times = [0.5]
+  result = particle_filter(abm, init, obs,
+    (s, t) -> Float64(nparts(s, :V)),
+    (o, s) -> -0.5 * (o - s)^2,
+    times; nparticles=10, maxevent=50)
+  @test haskey(result, :log_marginal_likelihood)
+  @test haskey(result, :particles)
+  @test length(result.particles) == 10
+
+  # Test abc_reject
+  accepted = abc_reject(abm, init, 5,
+    traj -> length(traj),
+    (s, o) -> abs(s - o);
+    nsamples=20, threshold=3.0, maxevent=10,
+    params_sampler=() -> (rate=rand(),))
+  @test accepted isa Vector
+  @test all(a -> a[2] <= 3.0, accepted)
+end
 
 
 end # module

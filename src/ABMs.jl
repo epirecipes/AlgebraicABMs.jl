@@ -2,7 +2,8 @@
 module ABMs
 
 export ABM, ABMRule, run!, DiscreteHazard, ContinuousHazard, FullClosure, 
-       ClosureState, ClosureTime, RawODE, ABMFlow, filter, push!, copy, length
+       ClosureState, ClosureTime, RawODE, ABMFlow, filter, push!, copy, length,
+       log_likelihood, particle_filter, abc_reject
 
 using Distributions, CompetingClocks, Random
 using DataStructures: DefaultDict
@@ -604,6 +605,191 @@ function run!(abm::ABM, rt::RuntimeABM, output::Traj;
     end
   end
   return output
+end
+
+# Calibration / inference
+#########################
+
+"""
+    log_likelihood(traj::Traj, observations, observe_fn, log_obs_density;
+                   times=nothing)
+
+Compute the log-likelihood of observed data given a simulation trajectory.
+
+- `observations`: vector of observed data points (one per observation time)
+- `observe_fn`: function `(ACSet, time) → simulated_observation` that extracts
+  the observable from a simulation state at a given time
+- `log_obs_density`: function `(observed, simulated) → log_density` giving the
+  log-probability of the observed data given the simulated value
+- `times`: observation times (defaults to event times from trajectory)
+
+Returns the total log-likelihood (sum of individual log-densities).
+
+# Example
+```julia
+# Count vertices at each event time
+obs_data = [5, 8, 12]
+obs_times = [1.0, 2.0, 3.0]
+ll = log_likelihood(traj, obs_data,
+  (state, t) -> nparts(state, :V),
+  (obs, sim) -> -0.5 * (obs - sim)^2;  # Gaussian log-density (unnormalized)
+  times=obs_times)
+```
+"""
+function log_likelihood(traj::Traj, observations, observe_fn::Function,
+                        log_obs_density::Function; times=nothing)
+  obs_times = isnothing(times) ? [e[1] for e in traj.events] : collect(times)
+  length(obs_times) == length(observations) || 
+    error("Number of observation times ($(length(obs_times))) must match observations ($(length(observations)))")
+  
+  ll = 0.0
+  for (i, (t, obs)) in enumerate(zip(obs_times, observations))
+    state = _state_at_time(traj, t)
+    sim = observe_fn(state, t)
+    ll += log_obs_density(obs, sim)
+  end
+  return ll
+end
+
+"""Reconstruct the state at a given time by replaying trajectory spans."""
+function _state_at_time(traj::Traj, t::Float64)
+  state = deepcopy(traj.init)
+  for (i, (event_t, _, _, _)) in enumerate(traj.events)
+    event_t > t && break
+    if i <= length(traj.hist)
+      state = codom(right(traj.hist[i]))
+    end
+  end
+  return state
+end
+
+"""
+    particle_filter(abm, init, observations, observe_fn, log_obs_density,
+                    obs_times; nparticles=100, params_sampler=nothing, kw...)
+
+Bootstrap particle filter for estimating the marginal likelihood of observations
+given an ABM. Runs `nparticles` independent simulations, resampling at each 
+observation time proportional to observation likelihood.
+
+Returns `(log_marginal_likelihood, final_particles, final_weights)`.
+
+- `params_sampler`: optional function `() → params` that samples parameter values
+  for each particle (enabling parameter estimation)
+
+# Example
+```julia
+obs = [5, 10, 15]
+times = [1.0, 2.0, 3.0]
+lml, particles, weights = particle_filter(abm, init, obs,
+  (s, t) -> nparts(s, :V),
+  (o, s) -> logpdf(Poisson(s), o),
+  times; nparticles=200)
+```
+"""
+function particle_filter(abm::ABM, init::T, observations, observe_fn::Function,
+                         log_obs_density::Function, obs_times;
+                         nparticles::Int=100, params_sampler=nothing,
+                         kw...) where T<:ACSet
+  N = nparticles
+  n_obs = length(observations)
+  length(obs_times) == n_obs || error("obs_times and observations must have same length")
+  
+  # Initialize particles
+  particles = [deepcopy(init) for _ in 1:N]
+  log_ml = 0.0  # accumulated log marginal likelihood
+  
+  prev_time = 0.0
+  for (k, (obs_t, obs)) in enumerate(zip(obs_times, observations))
+    # Run each particle forward from prev_time to obs_t
+    log_weights = zeros(N)
+    for i in 1:N
+      p = isnothing(params_sampler) ? nothing : params_sampler()
+      abm_i = isnothing(p) ? abm : ABM(abm.rules, abm.dyn)
+      traj = run!(abm_i, deepcopy(particles[i]); maxtime=obs_t, save=_->nothing, kw...)
+      # Get final state
+      particles[i] = if isempty(traj.hist)
+        deepcopy(traj.init)
+      else
+        deepcopy(codom(right(traj.hist[end])))
+      end
+      # Compute weight
+      sim = observe_fn(particles[i], obs_t)
+      log_weights[i] = log_obs_density(obs, sim)
+    end
+    
+    # Normalize weights and accumulate marginal likelihood
+    max_lw = maximum(log_weights)
+    weights = exp.(log_weights .- max_lw)
+    sum_w = sum(weights)
+    log_ml += max_lw + log(sum_w) - log(N)
+    weights ./= sum_w
+    
+    # Systematic resampling
+    particles = _systematic_resample(particles, weights)
+    prev_time = obs_t
+  end
+  
+  return (log_marginal_likelihood=log_ml, particles=particles, 
+          weights=fill(1.0/N, N))
+end
+
+"""Systematic resampling of particles according to weights."""
+function _systematic_resample(particles::Vector, weights::Vector{Float64})
+  N = length(particles)
+  cumw = cumsum(weights)
+  u = rand() / N
+  new_particles = similar(particles)
+  j = 1
+  for i in 1:N
+    while cumw[j] < u
+      j += 1
+    end
+    new_particles[i] = deepcopy(particles[j])
+    u += 1.0 / N
+  end
+  return new_particles
+end
+
+"""
+    abc_reject(abm, init, observations, summary_fn, distance_fn;
+               nsamples=100, threshold=Inf, params_sampler, kw...)
+
+Approximate Bayesian Computation (ABC) rejection sampler. Samples parameters,
+runs simulations, and accepts samples whose summary statistics are within
+`threshold` distance of observed summary statistics.
+
+Returns a vector of `(params, distance)` pairs for accepted samples.
+
+- `summary_fn`: function `Traj → summary_statistic` applied to both simulated
+  and observed data
+- `distance_fn`: function `(sim_summary, obs_summary) → distance`
+- `params_sampler`: function `() → params` (required)
+
+# Example
+```julia
+accepted = abc_reject(abm, init, observed_traj,
+  traj -> length(traj),          # summary: event count
+  (s, o) -> abs(s - o),          # distance: absolute difference
+  params_sampler=() -> (β=rand(),),
+  nsamples=1000, threshold=5.0)
+```
+"""
+function abc_reject(abm_template::ABM, init::T, obs_summary,
+                    summary_fn::Function, distance_fn::Function;
+                    nsamples::Int=100, threshold::Float64=Inf,
+                    params_sampler::Function, kw...) where T<:ACSet
+  accepted = Tuple{Any, Float64}[]
+  for _ in 1:nsamples
+    params = params_sampler()
+    abm = ABM(abm_template.rules, abm_template.dyn)
+    traj = run!(abm, deepcopy(init); kw...)
+    sim_summary = summary_fn(traj)
+    d = distance_fn(sim_summary, obs_summary)
+    if d <= threshold
+      push!(accepted, (params, d))
+    end
+  end
+  return accepted
 end
 
 end # module
