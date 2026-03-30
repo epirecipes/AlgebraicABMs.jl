@@ -45,6 +45,16 @@ end
 end
 @acset_type SpatialSet(SchSpatial, part_type=BitSetParts)
 
+# Shared-attrtype schema for ODE writeback regression tests
+@present SchDualAttr(FreeSchema) begin
+  A::Ob
+  B::Ob
+  D::AttrType
+  x::Attr(A, D)
+  y::Attr(B, D)
+end
+@acset_type DualAttrSet(SchDualAttr){Float64}
+
 # L = ∅, I = ∅, R = •↺
 create_loop = ABMRule(
   :CreateLoop,
@@ -299,6 +309,26 @@ end
   rt = RuntimeABM(abm_ode, deepcopy(init))
   run!(abm_ode, rt, AlgebraicABMs.ABMs.Traj(deepcopy(init)); maxtime=10.0, dt=1.0)
   @test abs(rt.state[:f][1] - 15.0) < 0.01
+end
+
+@testset "ODE writeback with shared attrtype" begin
+  pa = @acset DualAttrSet begin A=1; D=1; x=[AttrVar(1)] end
+  pb = @acset DualAttrSet begin B=1; D=1; y=[AttrVar(1)] end
+  flow_a = ABMFlow(pa, RawODE([_ -> 1.0]), :GrowA, [], [(:D => 1)])
+  flow_b = ABMFlow(pb, RawODE([_ -> 2.0]), :GrowB, [], [(:D => 1)])
+
+  init = @acset DualAttrSet begin
+    A = 1
+    B = 1
+    x = [1.0]
+    y = [10.0]
+  end
+  abm_dual = ABM(ABMRule[], [flow_a, flow_b])
+  rt = RuntimeABM(abm_dual, deepcopy(init))
+  run!(abm_dual, rt, AlgebraicABMs.ABMs.Traj(deepcopy(init)); maxtime=2.0, dt=0.5)
+
+  @test abs(rt.state[:x][1] - 3.0) < 0.01
+  @test abs(rt.state[:y][1] - 14.0) < 0.01
 end
 
 @testset "Hybrid ODE + Stochastic" begin
