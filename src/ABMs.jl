@@ -1013,7 +1013,6 @@ function run!(abm::ABM, rt::RuntimeABM, output::Traj;
               observables::Vector{Observable}=Observable[],
               save_every::Maybe{Float64}=nothing, record_history::Bool=true,
               interventions::Vector{Intervention}=Intervention[])
-  maxevent = isinf(maxtime) ? maxevent : typemax(Int)
   next_snapshot_time = isnothing(save_every) ? Inf : save_every
   has_observables = !isempty(observables)
 
