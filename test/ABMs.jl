@@ -7,9 +7,17 @@ using AlgebraicABMs
 using Catlab, AlgebraicRewriting
 
 using AlgebraicABMs.ABMs: RegularP, EmptyP, RepresentableP, RuntimeABM, Traj, Intervention
+using AlgebraicABMs.ABMs: _state_at_time, _systematic_resample
 using AlgebraicRewriting.Incremental.IncrementalCC: match_vect
 using Distributions: Exponential
+import Distributions
 using Catlab.CategoricalAlgebra.CSets: MarkAsDeleted
+const HAS_UNITFUL = try
+  @eval using Unitful
+  true
+catch
+  false
+end
 
 # Top-level schema definitions for schema inference/validation tests
 # (@acset_type generates `const` which cannot be used inside @testset on Julia 1.12)
@@ -27,6 +35,15 @@ using Catlab.CategoricalAlgebra.CSets: MarkAsDeleted
   V::Ob; E::Ob; src::Hom(E,V); tgt::Hom(E,V)
 end
 @acset_type GrphMD(SchGrphMD, part_type=MarkAsDeleted)
+
+# Spatial schema for spatial utility tests
+@present SchSpatial(FreeSchema) begin
+  Agent::Ob
+  Coord::AttrType
+  px::Attr(Agent, Coord)
+  py::Attr(Agent, Coord)
+end
+@acset_type SpatialSet(SchSpatial, part_type=BitSetParts)
 
 # L = ∅, I = ∅, R = •↺
 create_loop = ABMRule(
@@ -430,6 +447,209 @@ end
   g2 = @acset GrphMD begin V=4; E=2; src=[1,2]; tgt=[2,1] end
   @test shortest_distance(g2, 1, 2) == 1
   @test shortest_distance(g2, 1, 3) == typemax(Int)
+end
+
+# Phase 4-5 tests
+##################
+
+# ClosureHistory test: history-sensitive hazard rates (#22)
+@present SchGrphT(FreeSchema) begin V::Ob; E::Ob; src::Hom(E,V); tgt::Hom(E,V) end
+@acset_type GrphT(SchGrphT, part_type=BitSetParts)
+
+@testset "ClosureHistory" begin
+  v_grph = @acset GrphT begin V=1 end
+  v2_grph = @acset GrphT begin V=2 end
+  dup_v_hist = ABMRule(:dup_hist,
+    Rule(id(v_grph), homomorphism(v_grph, v2_grph; initial=(V=[1],))),
+    ClosureHistory((m, t, traj) -> begin
+      n = isnothing(traj) ? 0 : length(traj)
+      Exponential(1.0 + n)
+    end))
+  abm = ABM([dup_v_hist])
+  init = @acset GrphT begin V=2 end
+  res = run!(abm, init; maxevent=5)
+  @test length(res) == 5
+  times = [e[1] for e in res.events]
+  @test issorted(times)
+  @test all(t -> t > 0, times)
+end
+
+@testset "ABMRule context/dependency" begin
+  L = Graph(1)
+  Ctx = @acset Graph begin V=2; E=1; src=[1]; tgt=[2] end
+  ctx_morph = homomorphism(L, Ctx; initial=(V=[1],))
+  R = Graph(2)
+  I = Graph(1)
+  dup_rule = Rule(id(I), homomorphism(I, R; initial=(V=[1],)))
+  rule_with_ctx = ABMRule(dup_rule, ClosureState(m -> Exponential(1.0));
+    context=ctx_morph, name=:dup_ctx)
+  @test !isnothing(rule_with_ctx.context)
+  @test isnothing(rule_with_ctx.dependency)
+
+  Dep = Graph(1)
+  dep_morph = homomorphism(Dep, Ctx; initial=(V=[1],))
+  rule_with_dep = ABMRule(dup_rule, ClosureState(m -> Exponential(1.0));
+    context=ctx_morph, dependency=dep_morph, name=:dup_dep)
+  @test !isnothing(rule_with_dep.context)
+  @test !isnothing(rule_with_dep.dependency)
+
+  G = @acset Graph begin V=3; E=2; src=[1,2]; tgt=[2,3] end
+  m = homomorphism(L, G; initial=(V=[1],))
+  m_ctx = resolve_match(rule_with_ctx, m)
+  @test nparts(dom(m_ctx), :V) == 2
+  @test nparts(dom(m_ctx), :E) == 1
+  m_dep = resolve_match(rule_with_dep, m)
+  @test nparts(dom(m_dep), :V) == 1
+  m_plain = resolve_match(ABMRule(dup_rule, ContinuousHazard(1.0); name=:dup_plain), m)
+  @test m_plain == m
+
+  abm_ctx = ABM([rule_with_ctx])
+  init_g = @acset Graph begin V=3; E=2; src=[1,2]; tgt=[2,3] end
+  res = run!(abm_ctx, init_g; maxevent=3)
+  @test length(res) == 3
+end
+
+@testset "match_equal with fix" begin
+  L = @acset Graph begin V=1; E=1; src=[1]; tgt=[1] end
+  L_fix = Graph(1)
+  fix_morph = homomorphism(L_fix, L)
+  rule_no_fix = ABMRule(Rule(id(L), id(L)), ContinuousHazard(1.0); name=:nf)
+  rule_fix = ABMRule(Rule(id(L), id(L)), ContinuousHazard(1.0); name=:wf, fix=fix_morph)
+
+  G = @acset Graph begin V=2; E=2; src=[1,2]; tgt=[1,2] end
+  m1 = homomorphism(L, G; initial=(V=[1], E=[1]))
+  m2 = homomorphism(L, G; initial=(V=[1], E=[1]))
+  m3 = homomorphism(L, G; initial=(V=[2], E=[2]))
+
+  @test match_equal(rule_no_fix, m1, m2) == true
+  @test match_equal(rule_fix, m1, m2) == true
+  @test match_equal(rule_no_fix, m1, m3) == false
+  @test match_equal(rule_fix, m1, m3) == false
+  @test isnothing(rule_no_fix.fix)
+  @test !isnothing(rule_fix.fix)
+end
+
+if HAS_UNITFUL
+@eval module UnitfulTests
+  using Test, Unitful, Distributions
+  using AlgebraicABMs
+  using Catlab, AlgebraicRewriting
+
+  @testset "Unitful extension" begin
+    h1 = ContinuousHazard(0.1u"s^-1")
+    @test h1.val isa Distributions.Exponential
+    @test h1.val.θ ≈ 10.0
+
+    h2 = DiscreteHazard(5.0u"s")
+    @test h2.val isa Distributions.Dirac
+
+    @test validate_units(0.1u"s^-1")
+    @test validate_units(1.0u"d^-1")
+    @test_throws Unitful.DimensionError validate_units(1.0u"m")
+    @test_throws Unitful.DimensionError validate_units(1.0u"kg")
+
+    @test strip_units(5.0u"s") == 5.0
+    @test strip_units(3.14) == 3.14
+
+    ext = Base.get_extension(AlgebraicABMs.ABMs, :UnitfulExt)
+    mt, d = ext.check_time_units(100u"d", 0.1u"d")
+    @test mt ≈ 100.0
+    @test d ≈ 0.1
+
+    create_rule = ABMRule(:Create,
+      Rule(id(Graph()), create(ob(terminal(Graph)))),
+      ContinuousHazard(1.0u"s^-1"))
+    abm = ABM([create_rule])
+    init = @acset Graph begin V=1; E=1; src=[1]; tgt=[1] end
+    res = run!(abm, init; maxevent=3)
+    @test length(res) == 3
+  end
+end
+else
+  @warn "Unitful not available, skipping Unitful extension tests"
+end
+
+@testset "Spatial utilities" begin
+  state = SpatialSet{Float64}()
+  add_parts!(state, :Agent, 4; px=[0.0, 3.0, 0.0, 10.0], py=[0.0, 4.0, 1.0, 10.0])
+
+  pos = positions(state, :Agent, [:px, :py])
+  @test size(pos) == (2, 4)
+  @test pos[:, 1] == [0.0, 0.0]
+  @test pos[:, 2] == [3.0, 4.0]
+
+  near1 = within_radius(state, 1, 5.0, :Agent, [:px, :py])
+  @test 3 ∈ near1
+  @test 2 ∈ near1
+  @test 4 ∉ near1
+  @test 1 ∉ near1
+
+  near1_inc = within_radius(state, 1, 5.0, :Agent, [:px, :py]; exclude_self=false)
+  @test 1 ∈ near1_inc
+
+  close = within_radius(state, 1, 2.0, :Agent, [:px, :py])
+  @test close == [3]
+
+  D = pairwise_distances(state, :Agent, [:px, :py])
+  @test size(D) == (4, 4)
+  @test D[1, 1] == 0.0
+  @test D[1, 2] ≈ 5.0
+  @test D[1, 3] ≈ 1.0
+  @test all(D[i, j] ≈ D[j, i] for i in 1:4, j in 1:4)
+
+  empty_state = SpatialSet{Float64}()
+  pos_empty = positions(empty_state, :Agent, [:px, :py])
+  @test size(pos_empty) == (2, 0)
+end
+
+@testset "Calibration utilities" begin
+  v1 = Graph(1)
+  v2 = Graph(2)
+  dup = ABMRule(:dup,
+    Rule(id(v1), homomorphism(v1, v2; initial=(V=[1],))),
+    ContinuousHazard(1.0))
+  abm = ABM([dup])
+  init = @acset Graph begin V=2 end
+
+  traj = run!(abm, init; maxevent=5)
+  s0 = _state_at_time(traj, 0.0)
+  @test nparts(s0, :V) == 2
+  if !isempty(traj.events)
+    t_last = traj.events[end][1]
+    s_end = _state_at_time(traj, t_last + 1.0)
+    @test nparts(s_end, :V) == 7
+  end
+
+  parts = [1, 2, 3, 4]
+  weights = [0.7, 0.1, 0.1, 0.1]
+  resampled = _systematic_resample(parts, weights)
+  @test length(resampled) == 4
+  @test count(==(1), resampled) >= 1
+
+  obs_times = [traj.events[end][1]]
+  obs_data = [nparts(codom(right(traj.hist[end])), :V)]
+  ll = log_likelihood(traj, obs_data,
+    (state, t) -> nparts(state, :V),
+    (obs, sim) -> obs == sim ? 0.0 : -1000.0;
+    times=obs_times)
+  @test ll ≈ 0.0
+
+  result = particle_filter(abm, init, [3],
+    (s, t) -> Float64(nparts(s, :V)),
+    (o, s) -> -0.5 * (o - s)^2,
+    [0.5];
+    nparticles=10, maxevent=50)
+  @test haskey(result, :log_marginal_likelihood)
+  @test haskey(result, :particles)
+  @test length(result.particles) == 10
+
+  accepted = abc_reject(abm, init, 5,
+    traj -> length(traj),
+    (s, o) -> abs(s - o);
+    nsamples=20, threshold=3.0, maxevent=10,
+    params_sampler=() -> (rate=rand(),))
+  @test accepted isa Vector
+  @test all(a -> a[2] <= 3.0, accepted)
 end
 
 

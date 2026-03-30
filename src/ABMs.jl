@@ -2,12 +2,16 @@
 module ABMs
 
 export ABM, ABMRule, ABMSchedule, run!, DiscreteHazard, ContinuousHazard, FullClosure, 
-       ClosureState, ClosureTime, ClosureParams, FullClosureParams,
+       ClosureState, ClosureTime, ClosureParams, FullClosureParams, ClosureHistory,
        RawODE, ABMFlow, filter, push!, copy, length, run_scenarios,
        Observable, Traj, TiePolicy, TieBreak, TieRandom, TieError,
        RuntimeABM, Intervention, refresh_clocks!,
        infer_schema, validate_schema,
-       networkify, shortest_distance
+       networkify, shortest_distance,
+       resolve_match, match_equal,
+       validate_units, strip_units,
+       within_radius, pairwise_distances, positions,
+       log_likelihood, particle_filter, abc_reject
 
 using Distributions, CompetingClocks, Random
 using DataStructures: DefaultDict
@@ -86,6 +90,21 @@ struct FullClosureParams <: StateDependentTimer
 end
 
 (c::FullClosureParams)(m::ACSetTransformation, t::Float64, params) = c.val(m, t, params)
+
+"""
+A closure which accepts a match morphism, clock time, and trajectory history,
+returning a hazard_rate. This enables history-sensitive hazard rates where the
+firing distribution depends on past events (e.g. time since infection, 
+cumulative exposure, prior state transitions).
+
+The trajectory is passed as a `Traj` object containing all events and rewrite
+spans up to the current simulation time.
+"""
+struct ClosureHistory <: StateDependentTimer
+  val::Function # (ACSetTransformation, clocktime, Traj) → hazard_rate
+end
+
+(c::ClosureHistory)(m::ACSetTransformation, t::Float64, traj) = c.val(m, t, traj)
 
 abstract type AbsHazard <: AbsTimer end
 
@@ -221,6 +240,9 @@ get_hazard(::PatternType, m::ACSetTransformation, ::Float64, h::ClosureParams; p
 get_hazard(::PatternType, m::ACSetTransformation, t::Float64, h::FullClosureParams; params=nothing, kw...) = 
   h(m, t, params)
 
+get_hazard(::PatternType, m::ACSetTransformation, t::Float64, h::ClosureHistory; traj=nothing, kw...) = 
+  h(m, t, traj)
+
 function get_hazard(r::RepresentableP, f::ACSetTransformation, ::Float64, 
                     h::ContinuousHazard; kw...) 
    err = "Representable patterns must have simple exponential rules"
@@ -236,6 +258,16 @@ A stochastic rewrite rule with a dependent hazard rate
 A basis is a subobject of the pattern of the rule for which we want a timer 
 per match. By default, the basis ↣ pattern map is just id(pattern).
 
+A context is an optional morphism `L ↪ Ctx` embedding the pattern in a larger 
+context. When provided, state-dependent hazard rates receive a match morphism
+`Ctx → X` (the extended context match) instead of just `L → X`. This lets 
+hazard rates access neighborhood information beyond the pattern itself.
+
+A dependency is an optional morphism `Dep ↪ Ctx` identifying the subset of 
+the context that the hazard rate actually depends on.
+
+A fix is an optional morphism `L_fix ↪ L` identifying the identity-constitutive
+parts of a match. Two matches are considered "the same" if they agree on `fix`.
 """
 @struct_hash_equal struct ABMRule
   rule::Rule
@@ -243,8 +275,12 @@ per match. By default, the basis ↣ pattern map is just id(pattern).
   basis::Maybe{ACSetTransformation}
   name::Maybe{Symbol}
   pattern_type::PatternType
-  ABMRule(r::Rule, t::AbsTimer; basis=nothing, name=nothing) = 
-    new(r, t, basis, name, pattern_type(r, is_exp(t)))
+  context::Maybe{ACSetTransformation}     # L ↪ Ctx
+  dependency::Maybe{ACSetTransformation}  # Dep ↪ Ctx
+  fix::Maybe{ACSetTransformation}         # L_fix ↪ L
+  ABMRule(r::Rule, t::AbsTimer; basis=nothing, name=nothing,
+          context=nothing, dependency=nothing, fix=nothing) = 
+    new(r, t, basis, name, pattern_type(r, is_exp(t)), context, dependency, fix)
 end
 
 # Give name as first arg rather than as kwarg
@@ -265,6 +301,9 @@ right(r::ABMRule) = right(getrule(r))
 ruletype(r::ABMRule) = ruletype(getrule(r))
 
 basis(r::ABMRule) = r.basis
+context(r::ABMRule) = r.context
+dependency(r::ABMRule) = r.dependency
+fix(r::ABMRule) = r.fix
 
 basis_pattern(r::ABMRule) = isnothing(r.basis) ? codom(left(r)) : dom(basis(r))
 
@@ -272,7 +311,39 @@ get_matches(r::ABMRule, args...; kw...) =
   get_matches(getrule(r), args...; kw...)
 
 (F::Migrate)(r::ABMRule) = 
-  ABMRule(F(r.rule), r.timer; basis=F(r.basis), name=r.name)
+  ABMRule(F(r.rule), r.timer; basis=F(r.basis), name=r.name,
+          context=isnothing(r.context) ? nothing : F(r.context),
+          dependency=isnothing(r.dependency) ? nothing : F(r.dependency),
+          fix=isnothing(r.fix) ? nothing : F(r.fix))
+
+"""
+    resolve_match(rule::ABMRule, m::ACSetTransformation)
+
+Given a match `m : L → X`, extend it through the context and/or dependency
+morphisms to produce the match that the hazard rate function will receive.
+"""
+function resolve_match(rule::ABMRule, m::ACSetTransformation)
+  ctx = context(rule)
+  isnothing(ctx) && return m
+  ctx_match = extend_morphism_constraints(m, ctx)
+  extended = homomorphism(codom(ctx), codom(m); initial=ctx_match)
+  isnothing(extended) && return m
+  dep = dependency(rule)
+  isnothing(dep) && return extended
+  return dep ⋅ extended
+end
+
+"""
+    match_equal(rule::ABMRule, m1::ACSetTransformation, m2::ACSetTransformation)
+
+Compare two matches for identity according to the rule's `fix` subobject.
+If `fix` is set, compares `fix ⋅ m1 == fix ⋅ m2`. Otherwise `m1 == m2`.
+"""
+function match_equal(rule::ABMRule, m1::ACSetTransformation, m2::ACSetTransformation)
+  f = fix(rule)
+  isnothing(f) && return m1 == m2
+  return (f ⋅ m1) == (f ⋅ m2)
+end
 
 """
 An ABM event driven by an AlgebraicRewriting Schedule rather than a single rule.
@@ -597,7 +668,8 @@ mutable struct RuntimeABM
         end
       end
       for (key, val) in kv
-        haz = get_hazard(pat, val, 0., abm.rules[i].timer; params=abm.params)
+        val_resolved = resolve_match(abm.rules[i], val)
+        haz = get_hazard(pat, val_resolved, 0., abm.rules[i].timer; params=abm.params)
         enable!(rt.sampler, i => key, haz, 0., 0., rt.rng)
       end
     end
@@ -663,7 +735,8 @@ function refresh_clocks!(rt::RuntimeABM, abm::ABM)
       end
     end
     for (key, val) in kv
-      haz = get_hazard(pat, val, rt.tnow, abm.rules[i].timer; params=abm.params)
+      val_resolved = resolve_match(abm.rules[i], val)
+      haz = get_hazard(pat, val_resolved, rt.tnow, abm.rules[i].timer; params=abm.params)
       enable!(rt.sampler, i => key, haz, rt.tnow, rt.tnow, rt.rng)
     end
   end
@@ -961,7 +1034,8 @@ function run!(abm::ABM, rt::RuntimeABM, output::Traj;
   disable!′(i::Int) = disable!′(i => nothing)
   function enable!′(m::ACSetTransformation, rule_id::Int, key::Maybe{KeyType}=nothing) 
     rule = abm.rules[rule_id]
-    haz = get_hazard(pattern_type(rule), m, rt.tnow, rule.timer; params=abm.params)
+    m_resolved = resolve_match(rule, m)
+    haz = get_hazard(pattern_type(rule), m_resolved, rt.tnow, rule.timer; params=abm.params, traj=output)
     enable!(rt.sampler, rule_id => key, haz, rt.tnow, rt.tnow, rt.rng)
   end
 
@@ -1110,7 +1184,8 @@ function run!(abm::ABM, rt::RuntimeABM, output::Traj;
         for (i, (pat, homset)) in enumerate(zip(pattern_type.(abm.rules), rt.clocks))
           homset isa ExplicitHomSet || continue
           for (key, val) in pairs(homset)
-            haz = get_hazard(pat, val, rt.tnow, abm.rules[i].timer; params=abm.params)
+            val_resolved = resolve_match(abm.rules[i], val)
+            haz = get_hazard(pat, val_resolved, rt.tnow, abm.rules[i].timer; params=abm.params)
             enable!(rt.sampler, i => key, haz, rt.tnow, rt.tnow, rt.rng)
           end
         end
@@ -1216,14 +1291,15 @@ function run!(abm::ABM, rt::RuntimeABM, output::Traj;
         end
       end
       # If any of the matches that were fired are still preserved, re-enable,
-      # but only if an equivalent match was not already enabled above.
+      # but only if an equivalent match (per fix subobject) was not already enabled.
       for (event, key) in events
         if haskey(rt.clocks[event], key)
           match = rt.clocks[event][key]
+          rule_ev = abm.rules[event]
           already_enabled = any(updated_keys) do rk
             first(rk) == event && haskey(rt.sampler.transition_entry, rk) &&
               haskey(rt.clocks[event], last(rk)) &&
-              rt.clocks[event][last(rk)] == match
+              match_equal(rule_ev, rt.clocks[event][last(rk)], match)
           end
           if !already_enabled
             enable!′(match, event, key)
@@ -1385,6 +1461,181 @@ function shortest_distance(state::ACSet, u::Int, v::Int;
     end
   end
   return dist[v]
+end
+
+# Dimensional analysis stubs (methods added by UnitfulExt)
+"""
+    validate_units(rate, expected_dim)
+
+Validate dimensional consistency. Methods added by UnitfulExt when Unitful is loaded.
+"""
+function validate_units end
+
+"""
+    strip_units(val)
+
+Strip units from a quantity. Methods added by UnitfulExt when Unitful is loaded.
+"""
+function strip_units end
+
+# Spatial utilities
+###################
+
+"""
+    positions(state::ACSet, ob::Symbol, attrs::Vector{Symbol})
+
+Extract position matrix from an ACSet. Returns a `D × N` matrix.
+"""
+function positions(state::ACSet, ob::Symbol, attrs::Vector{Symbol})
+  n = nparts(state, ob)
+  n == 0 && return Matrix{Float64}(undef, length(attrs), 0)
+  hcat([Float64.(subpart(state, a)) for a in attrs]...)'
+end
+
+"""
+    within_radius(state::ACSet, i::Int, r::Real, ob::Symbol, attrs::Vector{Symbol};
+                  exclude_self=true)
+
+Find all parts of type `ob` within Euclidean distance `r` of part `i`.
+"""
+function within_radius(state::ACSet, i::Int, r::Real, ob::Symbol, 
+                       attrs::Vector{Symbol}; exclude_self::Bool=true)
+  pos = positions(state, ob, attrs)
+  n = size(pos, 2)
+  (i < 1 || i > n) && return Int[]
+  pi = pos[:, i]
+  r2 = r * r
+  result = Int[]
+  for j in 1:n
+    (exclude_self && j == i) && continue
+    d2 = sum((pos[k, j] - pi[k])^2 for k in axes(pos, 1))
+    d2 <= r2 && push!(result, j)
+  end
+  return result
+end
+
+"""
+    pairwise_distances(state::ACSet, ob::Symbol, attrs::Vector{Symbol})
+
+Compute pairwise Euclidean distance matrix for all parts of type `ob`.
+"""
+function pairwise_distances(state::ACSet, ob::Symbol, attrs::Vector{Symbol})
+  pos = positions(state, ob, attrs)
+  n = size(pos, 2)
+  D = zeros(Float64, n, n)
+  for i in 1:n, j in (i+1):n
+    d = sqrt(sum((pos[k, i] - pos[k, j])^2 for k in axes(pos, 1)))
+    D[i, j] = d
+    D[j, i] = d
+  end
+  return D
+end
+
+# Calibration / inference
+#########################
+
+"""
+    log_likelihood(traj::Traj, observations, observe_fn, log_obs_density; times=nothing)
+
+Compute log-likelihood of observed data given a simulation trajectory.
+"""
+function log_likelihood(traj::Traj, observations, observe_fn::Function,
+                        log_obs_density::Function; times=nothing)
+  obs_times = isnothing(times) ? [e[1] for e in traj.events] : collect(times)
+  length(obs_times) == length(observations) || 
+    error("Number of observation times must match observations")
+  ll = 0.0
+  for (t, obs) in zip(obs_times, observations)
+    state = _state_at_time(traj, t)
+    sim = observe_fn(state, t)
+    ll += log_obs_density(obs, sim)
+  end
+  return ll
+end
+
+function _state_at_time(traj::Traj, t::Float64)
+  state = deepcopy(traj.init)
+  for (i, (event_t, _, _, _)) in enumerate(traj.events)
+    event_t > t && break
+    if i <= length(traj.hist)
+      state = codom(right(traj.hist[i]))
+    end
+  end
+  return state
+end
+
+"""
+    particle_filter(abm, init, observations, observe_fn, log_obs_density,
+                    obs_times; nparticles=100, params_sampler=nothing, kw...)
+
+Bootstrap particle filter for marginal likelihood estimation.
+Returns `(log_marginal_likelihood, particles, weights)`.
+"""
+function particle_filter(abm::ABM, init::T, observations, observe_fn::Function,
+                         log_obs_density::Function, obs_times;
+                         nparticles::Int=100, params_sampler=nothing,
+                         kw...) where T<:ACSet
+  N = nparticles
+  length(obs_times) == length(observations) || error("obs_times and observations must match")
+  particles = [deepcopy(init) for _ in 1:N]
+  log_ml = 0.0
+  for (obs_t, obs) in zip(obs_times, observations)
+    log_weights = zeros(N)
+    for i in 1:N
+      p = isnothing(params_sampler) ? nothing : params_sampler()
+      abm_i = isnothing(p) ? abm : ABM(abm.rules, abm.dyn; tiepolicy=abm.tiepolicy, params=p)
+      traj = run!(abm_i, deepcopy(particles[i]); maxtime=obs_t, save=_->nothing, kw...)
+      particles[i] = isempty(traj.hist) ? deepcopy(traj.init) : deepcopy(codom(right(traj.hist[end])))
+      sim = observe_fn(particles[i], obs_t)
+      log_weights[i] = log_obs_density(obs, sim)
+    end
+    max_lw = maximum(log_weights)
+    weights = exp.(log_weights .- max_lw)
+    sum_w = sum(weights)
+    log_ml += max_lw + log(sum_w) - log(N)
+    weights ./= sum_w
+    particles = _systematic_resample(particles, weights)
+  end
+  return (log_marginal_likelihood=log_ml, particles=particles, weights=fill(1.0/N, N))
+end
+
+function _systematic_resample(particles::Vector, weights::Vector{Float64})
+  N = length(particles)
+  cumw = cumsum(weights)
+  u = rand() / N
+  new_particles = similar(particles)
+  j = 1
+  for i in 1:N
+    while cumw[j] < u
+      j += 1
+    end
+    new_particles[i] = deepcopy(particles[j])
+    u += 1.0 / N
+  end
+  return new_particles
+end
+
+"""
+    abc_reject(abm, init, obs_summary, summary_fn, distance_fn;
+               nsamples=100, threshold=Inf, params_sampler, kw...)
+
+ABC rejection sampler. Returns vector of `(params, distance)` for accepted samples.
+"""
+function abc_reject(abm_template::ABM, init::T, obs_summary,
+                    summary_fn::Function, distance_fn::Function;
+                    nsamples::Int=100, threshold::Float64=Inf,
+                    params_sampler::Function, kw...) where T<:ACSet
+  accepted = Tuple{Any, Float64}[]
+  for _ in 1:nsamples
+    params = params_sampler()
+    abm = ABM(abm_template.rules, abm_template.dyn; 
+              tiepolicy=abm_template.tiepolicy, params=params)
+    traj = run!(abm, deepcopy(init); kw...)
+    sim_summary = summary_fn(traj)
+    d = distance_fn(sim_summary, obs_summary)
+    d <= threshold && push!(accepted, (params, d))
+  end
+  return accepted
 end
 
 end # module
