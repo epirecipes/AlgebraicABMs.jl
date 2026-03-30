@@ -131,8 +131,49 @@ init = @acset LSet begin X=2; f=[1.1, 2.2] end
 
 # res = run!(abm, init, maxevent=2)
 
+# Dimensions / units test (#14)
+################################
 
+using Unitful
+using Unitful: @u_str
 
+@testset "Unitful extension" begin
+  # ContinuousHazard from unitful rate
+  h1 = ContinuousHazard(0.1u"s^-1")
+  @test h1.val isa Distributions.Exponential
+  @test h1.val.θ ≈ 10.0  # mean = 1/rate
+
+  # DiscreteHazard from unitful time
+  h2 = DiscreteHazard(5.0u"s")
+  @test h2.val isa Distributions.Dirac
+  
+  # validate_units: correct dimensions pass
+  @test validate_units(0.1u"s^-1")
+  @test validate_units(1.0u"d^-1")
+
+  # validate_units: wrong dimensions throw
+  @test_throws Unitful.DimensionError validate_units(1.0u"m")
+  @test_throws Unitful.DimensionError validate_units(1.0u"kg")
+
+  # strip_units: removes units
+  @test strip_units(5.0u"s") == 5.0
+  @test strip_units(3.14) == 3.14
+
+  # check_time_units
+  ext = Base.get_extension(AlgebraicABMs.ABMs, :UnitfulExt)
+  mt, d = ext.check_time_units(100u"d", 0.1u"d")
+  @test mt ≈ 100.0
+  @test d ≈ 0.1
+
+  # Full simulation with unitful-constructed hazards
+  create_rule = ABMRule(:Create,
+    Rule(id(Graph()), create(ob(terminal(Graph)))),
+    ContinuousHazard(1.0u"s^-1"))
+  abm = ABM([create_rule])
+  init = @acset Graph begin V=1; E=1; src=[1]; tgt=[1] end
+  res = run!(abm, init; maxevent=3)
+  @test length(res) == 3
+end
 
 
 end # module

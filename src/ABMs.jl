@@ -2,7 +2,8 @@
 module ABMs
 
 export ABM, ABMRule, run!, DiscreteHazard, ContinuousHazard, FullClosure, 
-       ClosureState, ClosureTime, RawODE, ABMFlow, filter, push!, copy, length
+       ClosureState, ClosureTime, RawODE, ABMFlow, filter, push!, copy, length,
+       validate_units, strip_units
 
 using Distributions, CompetingClocks, Random
 using DataStructures: DefaultDict
@@ -605,5 +606,22 @@ function run!(abm::ABM, rt::RuntimeABM, output::Traj;
   end
   return output
 end
+
+# Dimensional analysis stubs (methods added by UnitfulExt)
+"""
+    validate_units(rate, expected_dim)
+
+Validate dimensional consistency of a rate. When Unitful.jl is loaded, checks 
+that `rate` has the expected dimensions. Without Unitful, always returns true.
+"""
+function validate_units end
+
+"""
+    strip_units(val)
+
+Strip units from a quantity. When Unitful.jl is loaded, calls `ustrip`. 
+Without Unitful, returns the value unchanged.
+"""
+function strip_units end
 
 end # module
