@@ -211,6 +211,24 @@ end
     @test nparts(rt.state, :V) > 5
   end
 
+  @testset "refresh_clocks! re-enables schedule timers" begin
+    z = GrphMD()
+    g1 = @acset GrphMD begin V=1 end
+    add_v_rule = Rule(id(z), create(g1))
+    sched = tryrule(RuleApp(:add_v, add_v_rule, z))
+    abm_sched = ABM(ABMRule[]; schedules=[ABMSchedule(:add_v_sched, sched, DiscreteHazard(1.0))])
+
+    init = @acset GrphMD begin V=1 end
+    rt = RuntimeABM(abm_sched, init)
+    traj = run!(abm_sched, rt, Traj(init); maxevent=1)
+    @test nparts(rt.state, :V) == 2
+
+    add_part!(rt.state, :V)
+    refresh_clocks!(rt, abm_sched)
+    traj2 = run!(abm_sched, rt, traj; maxevent=2)
+    @test nparts(rt.state, :V) == 4
+  end
+
   @testset "Conditional intervention" begin
     iv = Intervention(
       state -> nparts(state, :V) >= 3,
@@ -229,6 +247,19 @@ end
     rt = RuntimeABM(abm, Graph(1))
     traj = run!(abm, rt, Traj(Graph(1)); maxtime=1.5, interventions=[iv])
     @test nparts(rt.state, :V) > 10
+  end
+
+  @testset "Intervention preserves schedule timers" begin
+    z = GrphMD()
+    g1 = @acset GrphMD begin V=1 end
+    add_v_rule = Rule(id(z), create(g1))
+    sched = tryrule(RuleApp(:add_v, add_v_rule, z))
+    abm_sched = ABM(ABMRule[]; schedules=[ABMSchedule(:add_v_sched, sched, DiscreteHazard(1.0))])
+
+    init = @acset GrphMD begin V=1 end
+    iv = Intervention(1.5, state -> add_part!(state, :V); name=:manual_add)
+    traj = run!(abm_sched, init; maxtime=3.1, interventions=[iv])
+    @test nparts(isempty(traj.hist) ? init : codom(right(traj.hist[end])), :V) == 5
   end
 end
 

@@ -740,6 +740,18 @@ function refresh_clocks!(rt::RuntimeABM, abm::ABM)
       enable!(rt.sampler, i => key, haz, rt.tnow, rt.tnow, rt.rng)
     end
   end
+  nrules = length(abm.rules)
+  for (j, sched) in enumerate(abm.schedules)
+    sched_idx = nrules + j
+    haz = if sched.timer isa AbsHazard
+      sched.timer.val
+    elseif sched.timer isa ClosureTime
+      sched.timer(rt.tnow)
+    else
+      error("ABMSchedule timers must not depend on match state")
+    end
+    enable!(rt.sampler, sched_idx => nothing, haz, rt.tnow, rt.tnow, rt.rng)
+  end
   return rt
 end
 
