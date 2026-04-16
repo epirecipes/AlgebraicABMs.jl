@@ -8,7 +8,6 @@ using Catlab, AlgebraicRewriting
 
 using AlgebraicABMs.ABMs: RegularP, EmptyP, RepresentableP, RuntimeABM, Traj, Intervention
 using AlgebraicABMs.ABMs: _state_at_time, _systematic_resample
-using AlgebraicRewriting.Incremental.IncrementalCC: match_vect
 using Distributions: Exponential
 import Distributions
 using Catlab.CategoricalAlgebra.CSets: MarkAsDeleted
@@ -115,7 +114,7 @@ push!(new_abm, do_nothing)
 @test_throws ErrorException push!(new_abm, rem_loop)
 
 # 2 loops, so 2 cached homs for the only rule with an explicit hom set
-@test length(only(match_vect(RuntimeABM(abm, G)[:RemLoop].val))) == 2
+@test length(collect(keys(RuntimeABM(abm, G)[:RemLoop]))) == 2
 
 traj = run!(abm, G; maxevent=10);
 
@@ -276,7 +275,7 @@ end
 
 # ODEs
 #####################
-using AlgebraicABMs, AlgebraicRewriting, Catlab, DifferentialEquations
+using AlgebraicABMs, AlgebraicRewriting, Catlab
 using AlgebraicABMs.ABMs: RuntimeABM
 
 # State of world: a set of free-floating Float64s
@@ -608,7 +607,8 @@ end
 
 if HAS_UNITFUL
 @eval module UnitfulTests
-  using Test, Unitful, Distributions
+  using Test, Unitful
+  import Distributions
   using AlgebraicABMs
   using Catlab, AlgebraicRewriting
 
