@@ -1,17 +1,30 @@
 """For things that should likely be upstreamed, such as type piracy"""
 module Upstream 
 
-using Catlab, AlgebraicRewriting
-import Catlab: is_isomorphic, Presentation
-using AlgebraicRewriting.Rewrite.Migration: pres_hash
-import AlgebraicRewriting: IncHomSet
-using AlgebraicRewriting.Incremental.IncrementalConstraints: AC, PAC, NAC
+using Catlab
+import Catlab: ⋅, compose, create, delete, id, is_isomorphic, Presentation, terminal
 using CompetingClocks: FirstToFire, disable!, next
 using Distributions: AbstractRNG
 
 # Upstream to Catlab
 ####################
 Presentation(p::Presentation) = p
+
+function id(x::ACSet)
+  S = acset_schema(x)
+  comps = Dict{Symbol,Any}(o => collect(parts(x, o)) for o in ob(S))
+  for t in attrtypes(S)
+    comps[t] = AttrVar.(parts(x, t))
+  end
+  ACSetTransformation(x, x; comps...)
+end
+
+terminal(T::Type{<:ACSet}) = terminal(WithModel(infer_acset_cat(T())))
+create(x::ACSet) = create(WithModel(infer_acset_cat(x)), x; context=nothing)
+delete(x::ACSet) = delete(WithModel(infer_acset_cat(x)), x; context=nothing)
+compose(f::ACSetTransformation, g::ACSetTransformation) =
+  compose(WithModel(infer_acset_cat(g)), f, g; context=nothing)
+⋅(f::ACSetTransformation, g::ACSetTransformation) = compose(f, g)
 
 """
 Turn any span into a partial map by quotienting I and R by the left map: epi-mono factorize I → L and then take a pushout. 
@@ -27,24 +40,6 @@ function make_partial(s::Span{<:ACSet})
   i′_r, _  = pushout(i_i′, right(s))
   return Span(i′_l, i′_r)
 end
-
-# Upstream to AlgRewriting
-##########################
-"""Optionally use a different pattern than the L of the rule"""
-function IncHomSet_basis(rule::Rule{T}, state::ACSet, additions=ACSetTransformation[]; 
-                         basis=nothing) where T
-  pac, nac = [], []
-  dpo = (T == :DPO) ? [left(rule)] : ACSetTransformation[]
-  right(rule) ∈ additions || push!(additions, right(rule))
-  for c in AC.(rule.conditions, Ref(additions), Ref(dpo))
-    c isa PAC && push!(pac, c)
-    c isa NAC && push!(nac, c)
-  end
-  pat = isnothing(basis) ? codom(left(rule)) : basis
-  IncHomSet(pat, additions, state; monic=rule.monic, pac, nac)
-end
-
-
 # CompetingClocks
 #################
 """Get the next event and disable it. This will """

@@ -15,7 +15,8 @@ export ABM, ABMRule, ABMSchedule, run!, DiscreteHazard, ContinuousHazard, FullCl
 
 using Distributions, CompetingClocks, Random
 using DataStructures: DefaultDict
-using DifferentialEquations: ODEProblem, solve, Tsit5
+using OrdinaryDiffEqTsit5: Tsit5
+using SciMLBase: ODEProblem, solve
 using StructEquality
 
 using Catlab, AlgebraicRewriting
@@ -24,9 +25,11 @@ using AlgebraicRewriting.Rewrite.Migration: repr_dict
 using Catlab.CategoricalAlgebra.Chase: extend_morphism_constraints
 using AlgebraicRewriting.Rewrite.Utils: get_pmap, get_rmap, get_expr_binding_map
 import Catlab: left, right
-import AlgebraicRewriting: get_match, ruletype, addition!, deletion!, get_matches
+import Catlab: force
+import Catlab.CategoricalAlgebra: components
+import AlgebraicRewriting: get_match, ruletype, get_matches
 
-import ..Upstream: pattern, pops!, IncHomSet_basis
+import ..Upstream: pops!
 
 # Timers
 ########
@@ -109,13 +112,13 @@ end
 abstract type AbsHazard <: AbsTimer end
 
 @struct_hash_equal struct DiscreteHazard <: AbsHazard
-  val::Distribution{Univariate, Discrete}
+  val::Distribution{Distributions.Univariate, Distributions.Discrete}
 end
 
 DiscreteHazard(t::Number) = DiscreteHazard(Dirac(t))
 
 @struct_hash_equal struct ContinuousHazard <: AbsHazard
-  val::Distribution{Univariate, Continuous}
+  val::Distribution{Distributions.Univariate, Distributions.Continuous}
 end
 
 """Check if a hazard rate is a simple exponential"""
@@ -128,6 +131,8 @@ ContinuousHazard(p::Number) = ContinuousHazard(Exponential(p))
 # Rules 
 #######
 abstract type PatternType end
+
+pattern(r::Rule) = codom(left(r))
 
 """Empty patterns have (one) trivial pattern match"""
 @struct_hash_equal struct EmptyP <: PatternType end
@@ -322,6 +327,13 @@ get_matches(r::ABMRule, args...; kw...) =
 Given a match `m : L → X`, extend it through the context and/or dependency
 morphisms to produce the match that the hazard rate function will receive.
 """
+function morphism_equal(m1::ACSetTransformation, m2::ACSetTransformation)
+  dom(m1) == dom(m2) || return false
+  codom(m1) == codom(m2) || return false
+  ks = union(Set(keys(components(m1))), Set(keys(components(m2))))
+  all(k -> force(get(components(m1), k, nothing)) == force(get(components(m2), k, nothing)), ks)
+end
+
 function resolve_match(rule::ABMRule, m::ACSetTransformation)
   ctx = context(rule)
   isnothing(ctx) && return m
@@ -336,7 +348,7 @@ function resolve_match(rule::ABMRule, m::ACSetTransformation)
   end
   dep_extensions = map(ext -> dep ⋅ ext, extensions)
   first_dep = first(dep_extensions)
-  all(ext -> ext == first_dep, dep_extensions) && return first_dep
+  all(ext -> morphism_equal(ext, first_dep), dep_extensions) && return first_dep
   rname = isnothing(rule.name) ? "<unnamed>" : string(rule.name)
   error("Ambiguous dependency-restricted context extension for rule '$rname': found $(length(dep_extensions)) distinct dependency matches")
 end
@@ -349,8 +361,8 @@ If `fix` is set, compares `fix ⋅ m1 == fix ⋅ m2`. Otherwise `m1 == m2`.
 """
 function match_equal(rule::ABMRule, m1::ACSetTransformation, m2::ACSetTransformation)
   f = fix(rule)
-  isnothing(f) && return m1 == m2
-  return (f ⋅ m1) == (f ⋅ m2)
+  isnothing(f) && return morphism_equal(m1, m2)
+  return morphism_equal(f ⋅ m1, f ⋅ m2)
 end
 
 """
@@ -524,9 +536,8 @@ function validate_schema(rules::Vector{ABMRule}, schema::Catlab.BasicSchema{Symb
   return schema
 end
 
-# Accessing an IncHomSet
-const KeyType = Union{Pair{Int, Int},        # connected comp. homset
-                      Vector{Pair{Int,Int}}} # multi-component homset
+# Accessing an explicit hom-set
+const KeyType = Int
 
 """
 Policy for handling simultaneous events (ties).
@@ -606,40 +617,140 @@ abstract type AbsHomSet end
 
 @struct_hash_equal struct RepresentableHomSet <: AbsHomSet end
 
-@struct_hash_equal struct ExplicitHomSet <: AbsHomSet val::IncHomSet end
+mutable struct ExplicitHomSet <: AbsHomSet
+  rule::ABMRule
+  state::ACSet
+  matches::Dict{KeyType, ACSetTransformation}
+  order::Vector{KeyType}
+  next_key::Int
+  pending_deletion::Maybe{ACSetTransformation}
+end
 
-Base.keys(h::ExplicitHomSet) = keys(h.val)
+function enumerate_matches(rule::ABMRule, state::ACSet)
+  raw_matches = collect(get_matches(getrule(rule), state))
+  isnothing(basis(rule)) && return raw_matches
+  basis_matches = eltype(raw_matches)[]
+  basis_map = basis(rule)
+  for match in raw_matches
+    basis_match = basis_map ⋅ match
+    any(==(basis_match), basis_matches) || push!(basis_matches, basis_match)
+  end
+  return basis_matches
+end
 
-Base.haskey(h::ExplicitHomSet, k::KeyType) = haskey(h.val, k)
+function ExplicitHomSet(rule::ABMRule, state::ACSet)
+  matches = enumerate_matches(rule, state)
+  dict = Dict{KeyType, ACSetTransformation}()
+  order = KeyType[]
+  for (i, match) in enumerate(matches)
+    dict[i] = match
+    push!(order, i)
+  end
+  ExplicitHomSet(rule, state, dict, order, length(order) + 1, nothing)
+end
+
+Base.keys(h::ExplicitHomSet) = h.order
+
+Base.haskey(h::ExplicitHomSet, k::KeyType) = haskey(h.matches, k)
 
 Base.haskey(::EmptyHomSet, k) = false
 
 Base.haskey(::RepresentableHomSet, k) = false
 
-Base.pairs(h::ExplicitHomSet) = pairs(h.val)
+Base.pairs(h::ExplicitHomSet) = [k => h.matches[k] for k in h.order if haskey(h.matches, k)]
 
-Base.getindex(h::ExplicitHomSet, i) = h.val[i]
+Base.getindex(h::ExplicitHomSet, i::KeyType) = h.matches[i]
 
-deletion!(h::ExplicitHomSet, m; kw...) =  deletion!(h.val, m; kw...)
+state(h::ExplicitHomSet) = h.state
 
-addition!(h::ExplicitHomSet, k, r, u) = addition!(h.val, k, r, u)
+function _find_match(matches, candidate, taken)
+  isnothing(candidate) && return nothing
+  for i in eachindex(matches)
+    taken[i] && continue
+    matches[i] == candidate && return i
+  end
+  return nothing
+end
+
+function _reconcile_matches!(h::ExplicitHomSet,
+                             lft::ACSetTransformation,
+                             rght::ACSetTransformation)
+  new_state = codom(rght)
+  new_matches = enumerate_matches(h.rule, new_state)
+  taken = falses(length(new_matches))
+  preserved = Dict{KeyType, Int}()
+  invalidated = KeyType[]
+  for key in h.order
+    haskey(h.matches, key) || continue
+    old_match = h.matches[key]
+    lifted = pull_back(lft, old_match)
+    new_idx = _find_match(new_matches, isnothing(lifted) ? nothing : lifted ⋅ rght, taken)
+    if isnothing(new_idx)
+      push!(invalidated, key)
+    else
+      preserved[key] = new_idx
+      taken[new_idx] = true
+    end
+  end
+
+  new_dict = Dict{KeyType, ACSetTransformation}()
+  new_order = KeyType[]
+  for key in h.order
+    haskey(preserved, key) || continue
+    new_dict[key] = new_matches[preserved[key]]
+    push!(new_order, key)
+  end
+
+  added = KeyType[]
+  for i in eachindex(new_matches)
+    taken[i] && continue
+    key = h.next_key
+    h.next_key += 1
+    new_dict[key] = new_matches[i]
+    push!(new_order, key)
+    push!(added, key)
+  end
+
+  h.state = new_state
+  h.matches = new_dict
+  h.order = new_order
+  return invalidated, added
+end
+
+function deletion!(h::ExplicitHomSet, m; kw...)
+  h.pending_deletion = m
+  return (KeyType[], KeyType[])
+end
+
+function addition!(h::ExplicitHomSet, k, r, u)
+  lft = something(h.pending_deletion, id(h.state))
+  h.pending_deletion = nothing
+  return _reconcile_matches!(h, lft, u)
+end
+
+function validate(h::ExplicitHomSet)
+  all(match -> codom(match) == h.state, values(h.matches)) || error("State mismatch")
+  expected = enumerate_matches(h.rule, h.state)
+  current = [h.matches[k] for k in h.order if haskey(h.matches, k)]
+  length(current) == length(expected) || error("Match count mismatch")
+  all(match -> any(==(match), current), expected) || error("Missing match")
+  all(match -> any(==(match), expected), current) || error("Unexpected match")
+  return true
+end
 
 """Initialize runtime hom-set given the rule and the initial state"""
 function init_homset(rule::ABMRule, state::ACSet, 
                      additions::Vector{<:ACSetTransformation})
   p, sd = pattern_type(rule), state_dep(rule.timer)
   p == EmptyP() && return EmptyHomSet()
-  (sd || p == RegularP()  
-   ) && return ExplicitHomSet(IncHomSet_basis(getrule(rule), state,  additions; 
-                                        basis=basis_pattern(rule)))
+  (sd || p == RegularP()) && return ExplicitHomSet(rule, state)
   @assert p isa RepresentableP  "$(typeof(p))"
   return RepresentableHomSet()
 end 
 
 const default_sampler = FirstToFire{
   Union{Pair{Int, Nothing},   # non-explicit homset
-        Pair{Int, Pair{Int,Int}}, # explicit single cc homset
-        Pair{Int, Vector{Pair{Int,Int}}}},  # explicit mc homset
+        Pair{Int, KeyType}},  # explicit homset
   Float64}
 
 """
@@ -888,8 +999,8 @@ end
 Check that RuntimeABM incremental hom sets have all valid homs.
 """
 function validate(rt::RuntimeABM)
-  for c in filter(c -> c isa IncHomSet, rt.clocks)
-    c.state == rt.state || error("State mismatch")
+  for c in filter(c -> c isa ExplicitHomSet, rt.clocks)
+    state(c) == rt.state || error("State mismatch")
     validate(c)
   end
 end
@@ -1229,11 +1340,15 @@ function run!(abm::ABM, rt::RuntimeABM, output::Traj;
         isnothing(m) && continue
         dpo = rule_type == :DPO ? (left(rule′), m) : nothing
         # check if dangling condition is satisfied
-        isnothing(dpo) || can_pushout_complement(ComposablePair(dpo...)) || continue
+        isnothing(dpo) || can_pushout_complement(
+          WithModel(infer_acset_cat(last(dpo))), ComposablePair(dpo...); context=nothing
+        ) || continue
         # Excute rewrite rule and unpack results
-        rw_result = (rule_type, rewrite_match_maps(rule′, m))
-        rmap_ = get_rmap(rw_result...)
-        xmap = get_expr_binding_map(rule′, m, rw_result[2])
+        cat = infer_acset_cat(m)
+        rw_maps = rewrite_match_maps(rule′, m; cat)
+        rw_result = (rule_type, rw_maps)
+        rmap_ = get_rmap(rule_type, rw_maps; cat)
+        xmap = get_expr_binding_map(rule′, m, rw_maps; cat)
         (lft, rght_) = get_pmap(rw_result...)
         rmap, rght = compose.([rmap_,rght_], Ref(xmap))
         pmap = Span(lft, rght)
